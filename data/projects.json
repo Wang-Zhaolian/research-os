@@ -1,0 +1,7 @@
+[
+  {
+    "id": "project_quant", "createdAt": "2026-09-18T12:00:00.000Z", "updatedAt": "2026-09-22T12:00:00.000Z", "tags": ["Python", "data"],
+    "name": "Personal Quant Platform", "type": "my_project", "techStack": ["Python", "FastAPI", "React"], "description": "个人量化研究与回测工具。",
+    "github": "", "demo": "", "status": "in_progress", "progress": "完成数据层原型。", "nextAction": "定义回测事件模型", "learnings": "先稳定数据契约，再扩展策略。"
+  }
+]

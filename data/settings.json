@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "demoData": true,
+  "gpa": {
+    "scale": 4,
+    "rules": [
+      { "minScore": 90, "point": 4, "label": "A" },
+      { "minScore": 85, "point": 3.7, "label": "A-" },
+      { "minScore": 82, "point": 3.3, "label": "B+" },
+      { "minScore": 78, "point": 3, "label": "B" },
+      { "minScore": 75, "point": 2.7, "label": "B-" },
+      { "minScore": 72, "point": 2.3, "label": "C+" },
+      { "minScore": 68, "point": 2, "label": "C" },
+      { "minScore": 64, "point": 1.5, "label": "D" },
+      { "minScore": 60, "point": 1, "label": "D-" },
+      { "minScore": 0, "point": 0, "label": "F" }
+    ]
+  }
+}

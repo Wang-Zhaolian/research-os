@@ -1,0 +1,24 @@
+[
+  {
+    "id": "paper_nco", "createdAt": "2026-09-15T12:00:00.000Z", "updatedAt": "2026-09-23T12:00:00.000Z", "tags": ["NCO", "routing"],
+    "title": "Neural Combinatorial Optimization with Reinforcement Learning", "authors": ["Irwan Bello", "Hieu Pham", "Quoc V. Le", "Mohammad Norouzi", "Samy Bengio"], "year": 2017,
+    "venue": "ICLR Workshop", "doiUrl": "https://arxiv.org/abs/1611.09940", "researchArea": "Neural Combinatorial Optimization", "status": "reading", "importance": 5,
+    "relatedResearchIds": ["research_scheduling"], "abstract": "使用强化学习训练神经网络求解组合优化问题。", "researchQuestion": "神经模型能否学习组合优化启发式？",
+    "coreMethod": "Pointer Network + policy gradient", "dataset": "随机 TSP 实例", "mainResults": "在训练分布上得到有竞争力的结果。", "contribution": "展示端到端学习优化启发式的可行性。",
+    "limitation": "泛化与规模迁移有限。", "myUnderstanding": "重要的是训练目标，而不只是架构。", "researchUse": "作为学习型调度方法的早期方法基础。", "worthDeepReading": true, "nextAction": "整理训练目标与基线设置",
+    "source": { "provider": "manual" }
+  },
+  {
+    "id": "paper_attention", "createdAt": "2026-09-16T12:00:00.000Z", "updatedAt": "2026-09-22T12:00:00.000Z", "tags": ["attention", "routing"],
+    "title": "Attention, Learn to Solve Routing Problems!", "authors": ["Wouter Kool", "Herke van Hoof", "Max Welling"], "year": 2019, "venue": "ICLR", "doiUrl": "https://arxiv.org/abs/1803.08475",
+    "researchArea": "Neural Combinatorial Optimization", "status": "skimmed", "importance": 5, "relatedResearchIds": ["research_scheduling"], "abstract": "基于注意力模型求解多类路由问题。",
+    "researchQuestion": "注意力架构能否形成通用的路由求解框架？", "coreMethod": "Attention Model + REINFORCE", "dataset": "TSP/VRP/OP/PCTSP", "mainResults": "多个路由问题上表现良好。",
+    "contribution": "统一架构处理多类问题。", "limitation": "主要验证同分布性能。", "myUnderstanding": "可借鉴编码器表示与解码约束。", "researchUse": "模型设计参考。", "worthDeepReading": true, "nextAction": "精读实验设计", "source": { "provider": "manual" }
+  },
+  {
+    "id": "paper_survey", "createdAt": "2026-09-17T12:00:00.000Z", "updatedAt": "2026-09-20T12:00:00.000Z", "tags": ["survey", "CO"],
+    "title": "Machine Learning for Combinatorial Optimization: a Methodological Tour d’Horizon", "authors": ["Yoshua Bengio", "Andrea Lodi", "Antoine Prouvost"], "year": 2021,
+    "venue": "European Journal of Operational Research", "doiUrl": "https://doi.org/10.1016/j.ejor.2020.07.063", "researchArea": "ML + OR", "status": "core", "importance": 5,
+    "relatedResearchIds": ["research_scheduling"], "abstract": "系统梳理机器学习与组合优化的结合方式。", "researchQuestion": "ML 能在组合优化求解流程的哪些位置发挥作用？", "coreMethod": "Survey taxonomy", "dataset": "", "mainResults": "提出方法学分类。", "contribution": "建立 ML for CO 的整体视图。", "limitation": "快速发展的领域需要持续更新。", "myUnderstanding": "研究问题应明确 ML 介入求解器的哪一环。", "researchUse": "构建综述框架。", "worthDeepReading": true, "nextAction": "把分类映射到项目调度", "source": { "provider": "manual" }
+  }
+]
