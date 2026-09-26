@@ -1,7 +1,7 @@
 [
   {
     "id": "competition_mcm", "createdAt": "2026-09-19T12:00:00.000Z", "updatedAt": "2026-09-21T12:00:00.000Z", "tags": ["modeling"],
-    "name": "Mathematical Modeling Competition", "level": "国际", "date": "2027-01-29", "teammates": [], "advisor": "", "status": "not_started", "deadline": "2026-11-15",
+    "name": "数学建模竞赛", "level": "国际", "date": "2027-01-29", "teammates": [], "advisor": "", "status": "not_started", "deadline": "2026-11-15",
     "preparationStage": "组队与方向评估", "currentTask": "确定是否参加及队友", "finalResult": "", "award": "", "cvImportance": "medium", "materials": [], "projectIds": []
   }
 ]

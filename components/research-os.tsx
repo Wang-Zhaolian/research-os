@@ -30,7 +30,7 @@ type FieldType = "text" | "textarea" | "date" | "number" | "select" | "list" | "
 type FieldDef = { key: string; label: string; type?: FieldType; wide?: boolean; options?: [string, string][]; help?: string; relationType?: EntityKind };
 
 const nav: { key: ViewKey; label: string; icon: typeof CircleGauge; section?: string }[] = [
-  { key: "dashboard", label: "Dashboard", icon: CircleGauge, section: "现在" },
+  { key: "dashboard", label: "总览", icon: CircleGauge, section: "现在" },
   { key: "tonight", label: "今晚更新", icon: ClipboardCheck },
   { key: "learning", label: "自主学习", icon: BookOpen, section: "工作区" },
   { key: "research", label: "科研", icon: FlaskConical },
@@ -83,16 +83,16 @@ const fields: Record<EditableCollection, FieldDef[]> = {
     { key: "collaborators", label: "合作者", type: "list" }, { key: "startDate", label: "开始时间", type: "date" },
     { key: "expectedCompletion", label: "预计完成", type: "date" }, { key: "status", label: "状态", type: "select", options: statusOptions },
     { key: "stage", label: "当前研究阶段", wide: true },
-    { key: "researchQuestion", label: "Research Question", type: "textarea", wide: true },
-    { key: "background", label: "Background", type: "textarea", wide: true },
-    { key: "literatureReview", label: "Literature Review", type: "textarea", wide: true },
-    { key: "researchGap", label: "Research Gap", type: "textarea", wide: true },
-    { key: "hypothesis", label: "Hypothesis / Research Idea", type: "textarea", wide: true },
-    { key: "method", label: "Method", type: "textarea", wide: true }, { key: "dataset", label: "Dataset", type: "textarea", wide: true },
-    { key: "experiment", label: "Experiment", type: "textarea", wide: true }, { key: "results", label: "Results", type: "textarea", wide: true },
-    { key: "writing", label: "Writing", type: "textarea", wide: true }, { key: "submission", label: "Submission", type: "textarea", wide: true },
+    { key: "researchQuestion", label: "研究问题", type: "textarea", wide: true },
+    { key: "background", label: "研究背景", type: "textarea", wide: true },
+    { key: "literatureReview", label: "文献综述", type: "textarea", wide: true },
+    { key: "researchGap", label: "研究空白", type: "textarea", wide: true },
+    { key: "hypothesis", label: "研究假设 / 研究构想", type: "textarea", wide: true },
+    { key: "method", label: "研究方法", type: "textarea", wide: true }, { key: "dataset", label: "数据集", type: "textarea", wide: true },
+    { key: "experiment", label: "实验", type: "textarea", wide: true }, { key: "results", label: "研究结果", type: "textarea", wide: true },
+    { key: "writing", label: "论文写作", type: "textarea", wide: true }, { key: "submission", label: "投稿情况", type: "textarea", wide: true },
     { key: "currentTask", label: "当前任务", type: "textarea", wide: true }, { key: "nextAction", label: "下一步行动", type: "textarea", wide: true },
-    { key: "deadline", label: "Deadline", type: "date" }, { key: "blockers", label: "阻塞问题", type: "textarea", wide: true },
+    { key: "deadline", label: "截止日期", type: "date" }, { key: "blockers", label: "阻塞问题", type: "textarea", wide: true },
     { key: "recentProgress", label: "最近进展", type: "textarea", wide: true },
     { key: "paperIds", label: "相关论文", type: "relationMulti", relationType: "paper", wide: true },
     { key: "meetings", label: "会议 / 导师沟通", type: "meetings", wide: true },
@@ -100,23 +100,23 @@ const fields: Record<EditableCollection, FieldDef[]> = {
     { key: "tags", label: "标签", type: "list", wide: true },
   ],
   papers: [
-    { key: "title", label: "Title", wide: true }, { key: "authors", label: "Authors", type: "list", wide: true },
-    { key: "year", label: "Year", type: "number" }, { key: "venue", label: "Journal / Conference" },
-    { key: "doiUrl", label: "DOI / URL", wide: true }, { key: "researchArea", label: "Research Area" },
-    { key: "status", label: "Status", type: "select", options: paperStatusOptions },
-    { key: "importance", label: "Importance (1–5)", type: "number" },
+    { key: "title", label: "论文标题", wide: true }, { key: "authors", label: "作者", type: "list", wide: true },
+    { key: "year", label: "年份", type: "number" }, { key: "venue", label: "期刊 / 会议" },
+    { key: "doiUrl", label: "DOI / 链接", wide: true }, { key: "researchArea", label: "研究领域" },
+    { key: "status", label: "阅读状态", type: "select", options: paperStatusOptions },
+    { key: "importance", label: "重要程度（1–5）", type: "number" },
     { key: "relatedResearchIds", label: "关联科研", type: "relationMulti", relationType: "research", wide: true },
-    { key: "abstract", label: "Abstract", type: "textarea", wide: true },
-    { key: "researchQuestion", label: "Research Question", type: "textarea", wide: true },
-    { key: "coreMethod", label: "Core Method", type: "textarea", wide: true }, { key: "dataset", label: "Dataset", type: "textarea", wide: true },
-    { key: "mainResults", label: "Main Results", type: "textarea", wide: true }, { key: "contribution", label: "Contribution", type: "textarea", wide: true },
-    { key: "limitation", label: "Limitation", type: "textarea", wide: true }, { key: "myUnderstanding", label: "我的理解", type: "textarea", wide: true },
+    { key: "abstract", label: "摘要", type: "textarea", wide: true },
+    { key: "researchQuestion", label: "研究问题", type: "textarea", wide: true },
+    { key: "coreMethod", label: "核心方法", type: "textarea", wide: true }, { key: "dataset", label: "数据集", type: "textarea", wide: true },
+    { key: "mainResults", label: "主要结果", type: "textarea", wide: true }, { key: "contribution", label: "主要贡献", type: "textarea", wide: true },
+    { key: "limitation", label: "局限性", type: "textarea", wide: true }, { key: "myUnderstanding", label: "我的理解", type: "textarea", wide: true },
     { key: "researchUse", label: "对我的科研有什么用", type: "textarea", wide: true }, { key: "nextAction", label: "后续行动", type: "textarea", wide: true },
-    { key: "worthDeepReading", label: "值得精读", type: "checkbox" }, { key: "tags", label: "Keywords / Tags", type: "list", wide: true },
+    { key: "worthDeepReading", label: "值得精读", type: "checkbox" }, { key: "tags", label: "关键词 / 标签", type: "list", wide: true },
   ],
   projects: [
     { key: "name", label: "项目名称", wide: true },
-    { key: "type", label: "类型", type: "select", options: [["my_project", "My Project"], ["reference_project", "Reference Project"]] },
+    { key: "type", label: "类型", type: "select", options: [["my_project", "我的项目"], ["reference_project", "参考项目"]] },
     { key: "status", label: "状态", type: "select", options: statusOptions }, { key: "techStack", label: "技术栈", type: "list", wide: true },
     { key: "description", label: "简介", type: "textarea", wide: true }, { key: "github", label: "GitHub", wide: true },
     { key: "demo", label: "Demo", wide: true }, { key: "progress", label: "当前进度", type: "textarea", wide: true },
@@ -126,7 +126,7 @@ const fields: Record<EditableCollection, FieldDef[]> = {
   competitions: [
     { key: "name", label: "竞赛名称", wide: true }, { key: "level", label: "级别" }, { key: "date", label: "比赛时间", type: "date" },
     { key: "teammates", label: "队友", type: "list" }, { key: "advisor", label: "指导老师" },
-    { key: "status", label: "状态", type: "select", options: statusOptions }, { key: "deadline", label: "Deadline", type: "date" },
+    { key: "status", label: "状态", type: "select", options: statusOptions }, { key: "deadline", label: "截止日期", type: "date" },
     { key: "preparationStage", label: "准备阶段", wide: true }, { key: "currentTask", label: "当前任务", type: "textarea", wide: true },
     { key: "finalResult", label: "最终结果", type: "textarea", wide: true }, { key: "award", label: "获奖情况", wide: true },
     { key: "cvImportance", label: "对 CV 的重要性", type: "select", options: [["high", "高"], ["medium", "中"], ["low", "低"]] },
@@ -136,10 +136,10 @@ const fields: Record<EditableCollection, FieldDef[]> = {
   ],
   goals: [
     { key: "title", label: "Goal", wide: true },
-    { key: "type", label: "类型", type: "select", options: [["year", "Year Goal"], ["semester", "Semester Goal"], ["long_term", "Long-term Goal"]] },
+    { key: "type", label: "类型", type: "select", options: [["year", "年度目标"], ["semester", "学期目标"], ["long_term", "长期目标"]] },
     { key: "timeframe", label: "时间范围" }, { key: "status", label: "状态", type: "select", options: statusOptions },
     { key: "description", label: "说明", type: "textarea", wide: true },
-    { key: "milestones", label: "Milestones", type: "milestones", wide: true },
+    { key: "milestones", label: "里程碑", type: "milestones", wide: true },
     { key: "linkedItems", label: "关联对象", type: "relation", wide: true, help: "目标目前支持一个主关联；更多关系可在后续编辑中扩展" },
     { key: "nextAction", label: "下一步行动", type: "textarea", wide: true }, { key: "tags", label: "标签", type: "list", wide: true },
   ],
@@ -152,17 +152,17 @@ const fields: Record<EditableCollection, FieldDef[]> = {
 };
 
 const pageMeta: Record<ViewKey, [string, string, string]> = {
-  dashboard: ["Research OS", "今天最值得推进什么", "把注意力放在少数真正重要的下一步。"],
-  tonight: ["Evening Review", "今晚更新", "用 3–5 分钟让计划重新贴合现实。"],
-  learning: ["Learning", "自主学习", "按课程、模块与 Topic 管理知识进展。"],
-  research: ["Research", "科研", "从研究问题到投稿，保留每一步上下文。"],
-  papers: ["Library", "论文阅读", "记录理解、贡献、局限，以及它对研究的实际作用。"],
-  projects: ["Projects", "非科研项目", "只管理个人开发与参考项目；科研代码留在科研模块。"],
-  competitions: ["Competitions", "竞赛", "只参加值得投入的竞赛，并跟踪准备与结果。"],
-  goals: ["Direction", "长期目标", "用 Milestones 和下一步行动连接多年目标与本周工作。"],
-  gpa: ["Academic Record", "成绩 / GPA", "按可配置规则计算学期与累计 GPA。"],
-  archive: ["Archive", "归档", "从当前工作区移出的内容仍可恢复。"],
-  settings: ["System", "设置", "配置 GPA 规则、外观与本地数据。"],
+  dashboard: ["总览", "今天最值得推进什么", "把注意力放在少数真正重要的下一步。"],
+  tonight: ["晚间复盘", "今晚更新", "用 3–5 分钟让计划重新贴合现实。"],
+  learning: ["学习", "自主学习", "按课程、模块与知识点管理知识进展。"],
+  research: ["研究", "科研", "从研究问题到投稿，保留每一步上下文。"],
+  papers: ["论文库", "论文阅读", "记录理解、贡献、局限，以及它对研究的实际作用。"],
+  projects: ["项目", "非科研项目", "只管理个人开发与参考项目；科研代码留在科研模块。"],
+  competitions: ["竞赛", "竞赛", "只参加值得投入的竞赛，并跟踪准备与结果。"],
+  goals: ["发展方向", "长期目标", "用里程碑和下一步行动连接多年目标与本周工作。"],
+  gpa: ["学业记录", "成绩 / GPA", "按可配置规则计算学期与累计 GPA。"],
+  archive: ["归档", "归档", "从当前工作区移出的内容仍可恢复。"],
+  settings: ["系统", "设置", "配置 GPA 规则、外观与本地数据。"],
 };
 
 const collectionView: Partial<Record<EditableCollection, ViewKey>> = {
@@ -256,7 +256,7 @@ export function ResearchOS() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="brand"><span className="brand-mark">R</span><span><strong>Research OS</strong><small>Personal Academic Console</small></span></div>
+        <div className="brand"><span className="brand-mark">R</span><span><strong>Research OS</strong><small>个人科研与学习控制台</small></span></div>
         <nav className="nav" aria-label="主导航">
           {nav.map((item) => <div key={item.key}>{item.section && <div className="nav-label">{item.section}</div>}<button className={`nav-button ${view === item.key ? "active" : ""}`} onClick={() => go(item.key)}><item.icon />{item.label}</button></div>)}
         </nav>
@@ -272,7 +272,7 @@ export function ResearchOS() {
             <span className="search-hint">Ctrl K</span>
             {query && <div className="search-results">{results.length ? results.map((result) => {
               const collection = result.collection as EditableCollection;
-              return <button key={`${collection}-${result.entity.id}`} className="search-result" onClick={() => { go(collectionView[collection] ?? "dashboard"); setEditor({ collection, entity: result.entity }); }}><span>{result.title}</span><small>{collection}</small></button>;
+              return <button key={`${collection}-${result.entity.id}`} className="search-result" onClick={() => { go(collectionView[collection] ?? "dashboard"); setEditor({ collection, entity: result.entity }); }}><span>{result.title}</span><small>{collectionLabel(collection)}</small></button>;
             }) : <div className="empty">没有找到匹配内容</div>}</div>}
           </div>
           <div className="topbar-actions">
@@ -326,7 +326,7 @@ function Dashboard({ db, edit, updateTask, addTask, go }: { db: Database; edit: 
       <section className="panel"><div className="panel-head"><h2 className="panel-title">长期目标进度</h2><Button variant="ghost" size="sm" onClick={() => go("goals")}>查看全部</Button></div><div className="panel-body">{activeGoals.length ? activeGoals.map((goal) => { const done = goal.milestones.filter((m) => m.status === "completed").length; const percent = goal.milestones.length ? Math.round(done / goal.milestones.length * 100) : 0; return <div className="goal-card" key={goal.id}><div className="goal-top"><strong>{goal.title}</strong><span className="panel-meta">{percent}% · {goal.timeframe}</span></div><div className="progress-track"><div className="progress-fill" style={{ width: `${percent}%` }} /></div><div className="row-subtitle">下一步：{goal.nextAction || "尚未设置"}</div></div>; }) : <PageEmpty>还没有活跃目标。</PageEmpty>}</div></section>
     </div>
     <div className="stack">
-      <section className="panel"><div className="panel-head"><h2 className="panel-title">科研状态</h2><Button variant="ghost" size="sm" onClick={() => go("research")}>科研工作区</Button></div><div className="panel-body">{activeResearch.length ? activeResearch.map((research) => <div className="research-card" key={research.id}><div className="card-top"><h4>{research.name}</h4><StatusBadge status={research.status} /></div><dl><dt>阶段</dt><dd>{research.stage}</dd><dt>最近进展</dt><dd>{research.recentProgress || "—"}</dd><dt>下一步</dt><dd>{research.nextAction || "—"}</dd><dt>Deadline</dt><dd>{research.deadline || "—"}</dd><dt>阻塞</dt><dd>{research.blockers || "无"}</dd></dl></div>) : <PageEmpty>暂无进行中的科研项目。</PageEmpty>}</div></section>
+      <section className="panel"><div className="panel-head"><h2 className="panel-title">科研状态</h2><Button variant="ghost" size="sm" onClick={() => go("research")}>科研工作区</Button></div><div className="panel-body">{activeResearch.length ? activeResearch.map((research) => <div className="research-card" key={research.id}><div className="card-top"><h4>{research.name}</h4><StatusBadge status={research.status} /></div><dl><dt>阶段</dt><dd>{research.stage}</dd><dt>最近进展</dt><dd>{research.recentProgress || "—"}</dd><dt>下一步</dt><dd>{research.nextAction || "—"}</dd><dt>截止日期</dt><dd>{research.deadline || "—"}</dd><dt>阻塞</dt><dd>{research.blockers || "无"}</dd></dl></div>) : <PageEmpty>暂无进行中的科研项目。</PageEmpty>}</div></section>
       <section className="panel"><div className="panel-head"><h2 className="panel-title">即将到来的截止日期</h2><span className="panel-meta">跨模块统一排序</span></div><div className="panel-body"><DeadlineGroup title="未来 7 天" items={inRange(seven)} /> <DeadlineGroup title="未来 30 天" items={inRange(thirty, new Date(seven.getTime() + 86400000))} /></div></section>
     </div>
   </div>;
@@ -358,7 +358,7 @@ function cardDetails(collection: EditableCollection, entity: AnyEntity): { summa
     case "learning": { const item = entity as LearningCourse; return { summary: item.progressSummary, meta: [["领域", item.field], ["当前", item.currentContent], ["下一步", item.nextAction], ["结构", `${item.modules.length} 个模块`]] }; }
     case "research": { const item = entity as ResearchProject; return { summary: item.recentProgress, meta: [["阶段", item.stage], ["研究问题", item.researchQuestion], ["下一步", item.nextAction], ["截止", item.deadline]] }; }
     case "papers": { const item = entity as Paper; return { summary: item.myUnderstanding || item.abstract, meta: [["作者", item.authors.join(", ")], ["来源", `${item.venue}${item.year ? ` · ${item.year}` : ""}`], ["领域", item.researchArea], ["后续", item.nextAction]] }; }
-    case "projects": { const item = entity as PersonalProject; return { summary: item.description, meta: [["类型", item.type === "my_project" ? "My Project" : "Reference Project"], ["技术栈", item.techStack.join(", ")], ["进度", item.progress], ["下一步", item.nextAction]] }; }
+    case "projects": { const item = entity as PersonalProject; return { summary: item.description, meta: [["类型", item.type === "my_project" ? "我的项目" : "参考项目"], ["技术栈", item.techStack.join(", ")], ["进度", item.progress], ["下一步", item.nextAction]] }; }
     case "competitions": { const item = entity as Competition; return { summary: item.currentTask, meta: [["级别", item.level], ["阶段", item.preparationStage], ["截止", item.deadline], ["CV 价值", item.cvImportance]] }; }
     case "goals": { const item = entity as Goal; const done = item.milestones.filter((m) => m.status === "completed").length; return { summary: item.description, meta: [["时间", item.timeframe], ["里程碑", `${done}/${item.milestones.length}`], ["下一步", item.nextAction], ["关联", `${item.linkedItems.length} 项`]] }; }
     case "tasks": { const item = entity as Task; return { summary: item.notes, meta: [["分类", item.category], ["截止", item.dueDate], ["优先级", item.priority], ["本周", item.weekBucket]] }; }
@@ -428,7 +428,7 @@ function RelationMulti({ value, update, db, type }: { value: string[]; update: (
 }
 function ModulesEditor({ value, update }: { value: LearningModule[]; update: (value: LearningModule[]) => void }) {
   const patch = (index: number, next: Partial<LearningModule>) => update(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item));
-  return <div className="stack">{value.map((module, index) => <div className="panel-body rounded-lg border" key={module.id}><div className="flex gap-2"><input className="field-input" value={module.title} placeholder="模块名称" onChange={(event) => patch(index, { title: event.target.value })} /><select className="field-select max-w-36" value={module.status} onChange={(event) => patch(index, { status: event.target.value as Status })}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><Button variant="ghost" size="icon-sm" onClick={() => update(value.filter((_, itemIndex) => itemIndex !== index))}><X /></Button></div><div className="mt-2"><label className="form-label">Topics（逗号分隔）</label><input className="field-input" value={module.topics.map((topic) => topic.title).join(", ")} onChange={(event) => patch(index, { topics: event.target.value.split(/[,，]/).map((title, topicIndex) => ({ id: module.topics[topicIndex]?.id ?? `topic_${Date.now()}_${topicIndex}`, title: title.trim(), status: module.topics[topicIndex]?.status ?? "not_started" as Status })).filter((topic) => topic.title) })} /></div></div>)}<Button variant="outline" size="sm" onClick={() => update([...value, { id: `module_${Date.now()}`, title: "", status: "not_started", topics: [] }])}><Plus />添加模块</Button></div>;
+  return <div className="stack">{value.map((module, index) => <div className="panel-body rounded-lg border" key={module.id}><div className="flex gap-2"><input className="field-input" value={module.title} placeholder="模块名称" onChange={(event) => patch(index, { title: event.target.value })} /><select className="field-select max-w-36" value={module.status} onChange={(event) => patch(index, { status: event.target.value as Status })}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><Button variant="ghost" size="icon-sm" onClick={() => update(value.filter((_, itemIndex) => itemIndex !== index))}><X /></Button></div><div className="mt-2"><label className="form-label">知识点（逗号分隔）</label><input className="field-input" value={module.topics.map((topic) => topic.title).join(", ")} onChange={(event) => patch(index, { topics: event.target.value.split(/[,，]/).map((title, topicIndex) => ({ id: module.topics[topicIndex]?.id ?? `topic_${Date.now()}_${topicIndex}`, title: title.trim(), status: module.topics[topicIndex]?.status ?? "not_started" as Status })).filter((topic) => topic.title) })} /></div></div>)}<Button variant="outline" size="sm" onClick={() => update([...value, { id: `module_${Date.now()}`, title: "", status: "not_started", topics: [] }])}><Plus />添加模块</Button></div>;
 }
 function MilestonesEditor({ value, update }: { value: Milestone[]; update: (value: Milestone[]) => void }) {
   const patch = (index: number, next: Partial<Milestone>) => update(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item));
@@ -457,7 +457,7 @@ function TonightReview({ db, refresh, go }: { db: Database; refresh: () => Promi
       let newDeadlineTaskId: string | undefined; if (deadlineTitle.trim() && deadlineDate) { const created = await rawUpsert("tasks", { ...defaultEntity("tasks"), title: deadlineTitle.trim(), dueDate: deadlineDate, priority: "high" }); newDeadlineTaskId = created.id; }
       await Promise.all(db.tasks.filter((task) => !task.archived).map((task) => rawUpsert("tasks", { id: task.id, pinned: priorities.includes(task.id), pinOrder: Math.max(1, priorities.indexOf(task.id) + 1) }, "PUT")));
       const review: Partial<EveningReview> = { ...defaultEntity("tasks"), date: today(), completedTaskIds: completed, unfinishedNote, researchProjectId: researchId || undefined, researchProgress, newPaperId, newDeadlineTaskId, priorityTaskIds: priorities, reflection };
-      await rawUpsert("reviews", review as Record<string, unknown>); await refresh(); toast.success("今晚更新已完成，Dashboard 已同步"); go("dashboard");
+      await rawUpsert("reviews", review as Record<string, unknown>); await refresh(); toast.success("今晚更新已完成，总览已同步"); go("dashboard");
     } catch (error) { toast.error(`保存复盘失败：${(error as Error).message}`); }
     finally { setSaving(false); }
   };
@@ -467,8 +467,8 @@ function TonightReview({ db, refresh, go }: { db: Database; refresh: () => Promi
     {step === 1 && <><h2>② 哪些事情没有完成？</h2><p>不必重排所有计划，只记录偏差原因或需要调整的地方。</p><textarea className="field-textarea min-h-52" value={unfinishedNote} onChange={(event) => setUnfinishedNote(event.target.value)} placeholder="例如：低估了第三章习题难度；研究问题仍需更多对比文献…" /></>}
     {step === 2 && <><h2>③ 科研有新进展吗？</h2><p>选择一个项目，写下今天之后真实发生的变化。</p><select className="field-select mb-3" value={researchId} onChange={(event) => { setResearchId(event.target.value); const item = db.research.find((r) => r.id === event.target.value); setResearchProgress(item?.recentProgress ?? ""); }}><option value="">今天没有科研更新</option>{db.research.filter((item) => !item.archived).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select><textarea className="field-textarea min-h-44" disabled={!researchId} value={researchProgress} onChange={(event) => setResearchProgress(event.target.value)} placeholder="最近进展" /></>}
     {step === 3 && <><h2>④ 有没有新论文？</h2><p>这里快速收件；完整阅读笔记可以之后在论文模块补充。</p><div className="stack"><input className="field-input" value={paperTitle} onChange={(event) => setPaperTitle(event.target.value)} placeholder="论文标题（可留空）" /><input className="field-input" value={paperUrl} onChange={(event) => setPaperUrl(event.target.value)} placeholder="DOI / URL" /></div></>}
-    {step === 4 && <><h2>⑤ 有没有新 Deadline？</h2><p>新截止日期会创建为高优先级本周任务。</p><div className="grid grid-cols-[1fr_180px] max-sm:grid-cols-1 gap-3"><input className="field-input" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} placeholder="事项（可留空）" /><input className="field-input" type="date" value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></div></>}
-    {step === 5 && <><h2>⑥ 最重要的事情变了吗？</h2><p>选择最多 5 项。选择顺序就是 Dashboard 上的顺序。</p><div className="choice-list">{activeTasks.map((task) => <label className="choice" key={task.id}><input type="checkbox" checked={priorities.includes(task.id)} onChange={() => toggle(priorities, setPriorities, task.id, 5)} /><span><strong>{task.title}</strong><div className="row-subtitle">{priorities.includes(task.id) ? `优先级 #${priorities.indexOf(task.id) + 1}` : task.category}</div></span></label>)}</div><textarea className="field-textarea mt-4" value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="一句话总结（可选）" /></>}
+    {step === 4 && <><h2>⑤ 有没有新的截止日期？</h2><p>新截止日期会创建为高优先级本周任务。</p><div className="grid grid-cols-[1fr_180px] max-sm:grid-cols-1 gap-3"><input className="field-input" value={deadlineTitle} onChange={(event) => setDeadlineTitle(event.target.value)} placeholder="事项（可留空）" /><input className="field-input" type="date" value={deadlineDate} onChange={(event) => setDeadlineDate(event.target.value)} /></div></>}
+    {step === 5 && <><h2>⑥ 最重要的事情变了吗？</h2><p>选择最多 5 项。选择顺序就是总览上的顺序。</p><div className="choice-list">{activeTasks.map((task) => <label className="choice" key={task.id}><input type="checkbox" checked={priorities.includes(task.id)} onChange={() => toggle(priorities, setPriorities, task.id, 5)} /><span><strong>{task.title}</strong><div className="row-subtitle">{priorities.includes(task.id) ? `优先级 #${priorities.indexOf(task.id) + 1}` : task.category}</div></span></label>)}</div><textarea className="field-textarea mt-4" value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="一句话总结（可选）" /></>}
     <div className="review-actions"><Button variant="outline" disabled={step === 0 || saving} onClick={() => setStep((current) => current - 1)}><ChevronLeft />上一步</Button>{step < 5 ? <Button onClick={() => setStep((current) => current + 1)}>下一步<ChevronRight /></Button> : <Button disabled={saving} onClick={() => void finish()}>{saving ? <RefreshCw className="animate-spin" /> : <Check />}{saving ? "正在更新" : "完成今晚更新"}</Button>}</div>
   </section></div>;
 }
@@ -487,8 +487,8 @@ function ArchivePage({ db, restore, remove }: { db: Database; restore: (collecti
 function SettingsPage({ db, setDb }: { db: Database; setDb: (db: Database) => void }) {
   const [rules, setRules] = useState(JSON.stringify(db.settings.gpa, null, 2)); const [saving, setSaving] = useState(false); const { theme, setTheme } = useTheme();
   const saveRules = async () => { try { setSaving(true); const gpa = JSON.parse(rules) as AppSettings["gpa"]; if (!Array.isArray(gpa.rules) || !gpa.rules.length) throw new Error("rules 必须是非空数组"); const settings = { ...db.settings, gpa }; await api("/api/data", { method: "PUT", body: JSON.stringify({ settings }) }); setDb({ ...db, settings }); toast.success("GPA 规则已保存"); } catch (error) { toast.error(`规则无效：${(error as Error).message}`); } finally { setSaving(false); } };
-  const reset = async () => { const next = await api<Database>("/api/data", { method: "PUT", body: JSON.stringify({ reset: true }) }); setDb(next); toast.success("Demo Data 已清除"); };
-  return <div className="grid settings-grid"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">GPA 计算规则</h2><span className="panel-meta">从高分到低分匹配第一个规则</span></div><Button disabled={saving} onClick={() => void saveRules()}>保存规则</Button></div><div className="panel-body"><textarea className="field-textarea code-area" spellCheck={false} value={rules} onChange={(event) => setRules(event.target.value)} /><p className="form-help">修改 scale、minScore、point 和 label。此设置保存在 data/settings.json。</p></div></section><div className="stack"><section className="panel"><div className="panel-head"><h2 className="panel-title">外观</h2></div><div className="panel-body"><label className="form-label">主题</label><select className="field-select" value={theme ?? "system"} onChange={(event) => setTheme(event.target.value)}><option value="dark">Dark</option><option value="light">Light</option><option value="system">跟随系统</option></select></div></section><section className="panel"><div className="panel-head"><h2 className="panel-title">本地数据</h2></div><div className="panel-body"><p className="text-sm text-muted-foreground leading-6">主要数据位于项目的 <code>data/</code> 目录。每个模块一个 JSON 文件，便于 Git diff、备份与迁移。</p></div></section><section className="panel danger-panel"><div className="panel-head"><h2 className="panel-title">清理 Demo Data</h2></div><div className="panel-body"><p className="text-sm text-muted-foreground mb-4">清空所有模块数据，保留默认 GPA 规则。建议首次熟悉系统后执行。</p><ConfirmButton title="清空全部 Demo Data？" description="所有当前数据都会被清空。此操作无法撤销，建议先提交 Git 备份。" action="确认清空" onConfirm={() => void reset()} /></div></section></div></div>;
+  const reset = async () => { const next = await api<Database>("/api/data", { method: "PUT", body: JSON.stringify({ reset: true }) }); setDb(next); toast.success("示例数据已清除"); };
+  return <div className="grid settings-grid"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">GPA 计算规则</h2><span className="panel-meta">从高分到低分匹配第一个规则</span></div><Button disabled={saving} onClick={() => void saveRules()}>保存规则</Button></div><div className="panel-body"><textarea className="field-textarea code-area" spellCheck={false} value={rules} onChange={(event) => setRules(event.target.value)} /><p className="form-help">修改 scale（满绩点）、minScore（最低分）、point（绩点）和 label（等级）。此设置保存在 data/settings.json。</p></div></section><div className="stack"><section className="panel"><div className="panel-head"><h2 className="panel-title">外观</h2></div><div className="panel-body"><label className="form-label">主题</label><select className="field-select" value={theme ?? "system"} onChange={(event) => setTheme(event.target.value)}><option value="dark">深色</option><option value="light">浅色</option><option value="system">跟随系统</option></select></div></section><section className="panel"><div className="panel-head"><h2 className="panel-title">本地数据</h2></div><div className="panel-body"><p className="text-sm text-muted-foreground leading-6">主要数据位于项目的 <code>data/</code> 目录。每个模块一个 JSON 文件，便于 Git 对比、备份与迁移。</p></div></section><section className="panel danger-panel"><div className="panel-head"><h2 className="panel-title">清理示例数据</h2></div><div className="panel-body"><p className="text-sm text-muted-foreground mb-4">清空所有模块的示例数据，保留默认 GPA 规则。建议首次熟悉系统后执行。</p><ConfirmButton title="清空全部示例数据？" description="所有当前数据都会被清空。此操作无法撤销，建议先提交 Git 备份。" action="确认清空" onConfirm={() => void reset()} /></div></section></div></div>;
 }
 
 function ConfirmButton({ title, description, action, onConfirm }: { title: string; description: string; action: string; onConfirm: () => void }) {
@@ -509,19 +509,19 @@ function useWebMcp(db: Database, refresh: () => Promise<void>) {
     const lifecycle = new AbortController();
     const register = (tool: WebMcpTool) => { void Promise.resolve(context.registerTool(tool, { signal: lifecycle.signal })).catch(() => undefined); };
     register({
-      name: "search_research_os", title: "Search Research OS", description: "Search active tasks, courses, research, papers, projects, competitions, goals, and grades.",
+      name: "search_research_os", title: "搜索 Research OS", description: "搜索进行中的任务、课程、科研、论文、项目、竞赛、目标和成绩。",
       inputSchema: { type: "object", properties: { query: { type: "string", minLength: 1 } }, required: ["query"], additionalProperties: false },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute(input) { const query = (input as { query?: unknown })?.query; if (typeof query !== "string" || !query.trim()) throw new Error("query must be a non-empty string"); return searchDatabase(db, query).slice(0, 20).map((result) => ({ collection: result.collection, id: result.entity.id, title: result.title })); },
     });
     register({
-      name: "create_research_os_task", title: "Create Research OS task", description: "Create a real weekly task and persist it to local Research OS data.",
+      name: "create_research_os_task", title: "创建 Research OS 任务", description: "创建一条本周任务，并保存到 Research OS 本地数据。",
       inputSchema: { type: "object", properties: { title: { type: "string", minLength: 1 }, dueDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }, priority: { type: "string", enum: ["high", "medium", "low"] }, notes: { type: "string" } }, required: ["title"], additionalProperties: false },
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       async execute(input) { const value = input as { title?: unknown; dueDate?: unknown; priority?: unknown; notes?: unknown }; if (typeof value.title !== "string" || !value.title.trim()) throw new Error("title must be a non-empty string"); const entity = await api<Task>("/api/entities", { method: "POST", body: JSON.stringify({ collection: "tasks", entity: { ...defaultEntity("tasks"), title: value.title.trim(), dueDate: typeof value.dueDate === "string" ? value.dueDate : "", priority: ["high", "medium", "low"].includes(String(value.priority)) ? value.priority : "medium", notes: typeof value.notes === "string" ? value.notes : "" } }) }); await refresh(); return { id: entity.id, title: entity.title, status: entity.status }; },
     });
     register({
-      name: "complete_research_os_task", title: "Complete Research OS task", description: "Mark an existing task complete and update the visible dashboard.",
+      name: "complete_research_os_task", title: "完成 Research OS 任务", description: "将已有任务标记为已完成，并更新总览。",
       inputSchema: { type: "object", properties: { taskId: { type: "string", minLength: 1 } }, required: ["taskId"], additionalProperties: false },
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       async execute(input) { const taskId = (input as { taskId?: unknown })?.taskId; if (typeof taskId !== "string") throw new Error("taskId must be a string"); const task = db.tasks.find((item) => item.id === taskId && !item.archived); if (!task) throw new Error("task not found"); await api("/api/entities", { method: "PUT", body: JSON.stringify({ collection: "tasks", entity: { id: task.id, status: "completed", completedAt: nowIso(), pinned: false } }) }); await refresh(); return { id: task.id, status: "completed" }; },

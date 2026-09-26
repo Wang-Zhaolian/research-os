@@ -1,32 +1,36 @@
 # Research OS
 
-Research OS is a local-first research and learning command center for long-term undergraduate study, research, projects, competitions, goals, and academic records. It is deliberately not a timer or a day planner: the core unit is meaningful progress, the current state, and the next action.
+Research OS 是一个本地优先的个人科研与学习控制台，用于长期管理本科阶段的自主学习、科研、论文、项目、竞赛、目标与成绩。
 
-## What is included
+它不是番茄钟，也不是精确日程工具。系统关注的是：事情有没有推进、当前处于什么状态、下一步是什么、哪里发生了停滞，以及现在最值得做什么。
 
-- Dashboard with manually ordered Top 3–5 priorities, weekly tasks, goal milestones, research status, and unified 7/30-day deadlines
-- Learning courses with module/topic hierarchy
-- A dedicated research workspace covering question, gap, method, data, experiments, writing, meetings, materials, and research-owned code
-- Paper library with structured reading notes and a Zotero-ready `source` boundary
-- Separate personal/reference projects, competitions, long-term goals, and recoverable archive
-- Configurable GPA mapping, semester GPA, cumulative GPA, credits, and course records
-- Six-step Evening Review that updates tasks, research progress, paper inbox, deadlines, and dashboard priorities
-- Global search, module filters, tags, statuses, priorities, relations, and soft deletion
-- Human-readable, Git-friendly JSON persistence with atomic writes
+## 已实现功能
 
-## Technology
+- 总览：手工排序的当前重点、本周任务、长期目标、科研状态和未来 7/30 天截止日期
+- 自主学习：课程 → 模块 → 知识点三级结构
+- 科研：研究问题、研究空白、方法、数据、实验、写作、会议记录和科研代码/材料
+- 论文：书目信息、阅读状态、核心方法、结果、贡献、局限、个人理解和科研价值
+- 项目：独立管理非科研个人项目与参考项目
+- 竞赛：准备阶段、任务、队友、材料、结果和获奖情况
+- 长期目标：年度、学期和长期目标，以及里程碑和关联对象
+- 成绩 / GPA：可配置换算规则、学期 GPA、累计 GPA 与学分统计
+- 今晚更新：六步更新任务、科研进展、论文、截止日期和当前重点
+- 全局搜索、标签、筛选、跨模块关联、归档与恢复
+- 可读、可对比、适合 Git 管理的本地 JSON 数据
 
-- **Next.js + React + TypeScript**: one cross-platform local Web app, typed end to end
-- **Node route handlers**: local-only CRUD API with no cloud dependency
-- **JSON files**: readable diffs and simple Git backup/merge; no binary database
-- **Tailwind + accessible UI primitives**: compact, responsive light/dark interface
-- **Node test runner**: zero additional test framework
+## 技术方案
 
-The architecture stays intentionally small: browser → local Next.js API → JSON store. See [docs/architecture.md](docs/architecture.md) for the relationship model and extension boundaries.
+- **Next.js + React + TypeScript**：跨平台、本地浏览器访问、完整类型约束
+- **Node 本地接口**：实现真正的数据增删改查，不依赖云服务
+- **JSON 文件**：便于 Git 对比、合并、迁移与手工查看
+- **Tailwind CSS + 可访问 UI 组件**：响应式深色/浅色界面
+- **Node 测试运行器**：不额外引入大型测试框架
 
-## Installation
+整体链路保持简单：浏览器 → 本地 Next.js 接口 → JSON 数据文件。详细关系模型见 [架构说明](docs/architecture.md)。
 
-Prerequisite: Node.js 22.13 or newer and Git. Node 24 LTS/current works.
+## 安装
+
+前置条件：Node.js 22.13 或更高版本，以及 Git。
 
 ### Windows
 
@@ -36,7 +40,11 @@ npm install
 ./start-research-os.cmd
 ```
 
-Or start it directly with `npm run dev`.
+也可以直接运行：
+
+```powershell
+npm run dev
+```
 
 ### macOS
 
@@ -47,173 +55,174 @@ chmod +x start-research-os.sh sync-pull.sh sync-push.sh
 ./start-research-os.sh
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The development server prints the exact address if port 3000 is already occupied.
+随后打开 [http://localhost:3000](http://localhost:3000)。如果 3000 端口已被占用，终端会显示实际地址。
 
-## Running
+## 日常启动
 
-For daily use:
+开发模式：
 
 ```bash
 npm run dev
 ```
 
-For a production-style local run:
+生产模式：
 
 ```bash
 npm run build
 npm start
 ```
 
-The application binds to `127.0.0.1`, so it is available only on the current computer by default.
+程序只绑定 `127.0.0.1`，默认仅当前电脑可以访问。
 
-## Daily workflow
+## 建议的每日使用方式
 
-1. Open **今晚更新** once in the evening.
-2. Mark completed tasks and note why unfinished work moved.
-3. Record the latest research progress.
-4. Capture a newly discovered paper or deadline.
-5. Re-select the 3–5 priorities that deserve tomorrow's attention.
-6. Finish the review; Dashboard updates immediately.
+1. 晚上进入“今晚更新”。
+2. 勾选今天已经完成的任务。
+3. 记录未完成事项的原因或计划偏差。
+4. 更新一个科研项目的最近进展。
+5. 快速收录新论文或新截止日期。
+6. 重新选择明天最重要的 3～5 件事。
+7. 完成复盘，总览会自动更新。
 
-Use the deeper module pages when creating a course/research project or when writing detailed paper and research notes. The Dashboard should remain a decision surface, not a database dump.
+创建课程、科研项目或详细论文笔记时，再进入相应模块深入维护。总览应当始终是用于做决定的页面，而不是堆满所有数据。
 
-## Data
+## 数据存储
 
-All durable user data is stored in [`data/`](data/) as formatted UTF-8 JSON:
+所有持久数据都位于 [`data/`](data/) 目录，以格式化的 UTF-8 JSON 保存：
 
 ```text
 data/
-  tasks.json          # weekly tasks, priorities, deadlines
-  learning.json       # courses, modules, topics
-  research.json       # research projects and research-owned resources/code
-  papers.json         # paper metadata and reading notes
-  projects.json       # non-research personal/reference projects
-  competitions.json
-  goals.json
-  grades.json
-  reviews.json        # evening review history
-  settings.json       # GPA mapping and schema version
+  tasks.json          # 周任务、当前重点、截止日期
+  learning.json       # 课程、模块、知识点
+  research.json       # 科研项目、会议、科研材料与代码
+  papers.json         # 论文信息与阅读笔记
+  projects.json       # 非科研项目
+  competitions.json   # 竞赛
+  goals.json          # 长期目标与里程碑
+  grades.json         # 成绩
+  reviews.json        # 晚间复盘记录
+  settings.json       # GPA 规则和数据版本
 ```
 
-Each collection is separate to keep diffs focused and reduce conflicts. Writes are queued and atomic. You may read or edit these files manually while the server is stopped. Dates use `YYYY-MM-DD`; timestamps use ISO 8601 UTC; relations use stable IDs.
+不同模块使用独立文件，可以让 Git 变更更集中，减少冲突。写入操作采用排队和原子替换，防止保存到一半时损坏文件。
 
-### Backup
+- 普通日期格式：`YYYY-MM-DD`
+- 时间戳格式：ISO 8601 UTC
+- 跨模块关系：使用稳定 ID 引用，不复制整份数据
 
-The simplest backup is a Git commit. You can also copy the entire `data/` directory. Never copy only one relation-heavy file unless you know its referenced IDs also exist in the destination.
+服务器停止时，可以直接阅读或手工修改 JSON 文件。
 
-### Demo Data
+### 备份
 
-The initial data demonstrates every module. After exploring it, open **设置 → 清理 Demo Data**. The deletion requires confirmation and retains the default GPA rules.
+最简单的备份方式是提交一次 Git。也可以完整复制整个 `data/` 目录。
 
-## Git Sync
+不要只复制一个包含大量关联关系的文件，除非对应的关联 ID 在目标位置也存在。
 
-Initialize once if this folder has not yet been committed:
+### 示例数据
 
-```bash
-git init
-git add .
-git commit -m "feat: initial Research OS MVP"
-```
+初始数据覆盖了所有模块。熟悉系统后，可进入“设置 → 清理示例数据”。清理操作需要二次确认，并会保留默认 GPA 规则。
 
-### GitHub private repository
+## GitHub 私有仓库同步
 
-Install and authenticate GitHub CLI if it is not already available:
+本项目只应使用 **Private 私有仓库**。
+
+首次创建远程仓库：
 
 ```bash
 gh auth login
 gh repo create research-os --private --source=. --remote=origin --push
 ```
 
-Keep `--private`. Alternatively, create a **Private** empty repository in the GitHub website and run:
+也可以在 GitHub 网页中创建一个空的私有仓库，再执行：
 
 ```bash
-git remote add origin git@github.com:YOUR_NAME/research-os.git
+git remote add origin git@github.com:你的用户名/research-os.git
 git push -u origin main
 ```
 
-### Pull and push
-
-Windows:
+### Windows 日常同步
 
 ```powershell
 ./sync-pull.cmd
-# use Research OS
+# 使用 Research OS 并更新数据
 ./sync-push.cmd
 ```
 
-macOS:
+### macOS 日常同步
 
 ```bash
 ./sync-pull.sh
-# use Research OS
+# 使用 Research OS 并更新数据
 ./sync-push.sh
 ```
 
-`sync-push` creates a timestamped commit, pulls with rebase, and pushes. `sync-pull` uses rebase with auto-stash so uncommitted local edits are not silently overwritten.
+`sync-push` 会创建带时间戳的提交、拉取远程变更并推送；`sync-pull` 使用变基与自动暂存，避免静默覆盖本地改动。
 
-### Move to another computer
+### 更换电脑
 
-1. Install Node.js and Git.
-2. Clone the private repository.
-3. Run `npm install`.
-4. Run the platform start script.
-5. Always pull before editing on a different computer, and push when finished.
+1. 安装 Node.js 和 Git。
+2. 克隆私有仓库。
+3. 执行 `npm install`。
+4. 运行对应系统的启动脚本。
+5. 换设备前先推送；在另一台设备开始更新前先拉取。
 
-To minimize conflicts, finish and push the evening update on one device before starting on another. Git can merge changes to different collection files automatically; simultaneous edits to the same JSON array may need a manual merge.
+为减少冲突，建议在一台设备完成晚间更新并推送后，再使用另一台设备。同一个 JSON 文件被两台设备同时修改时，仍可能需要手工处理 Git 冲突。
 
-## Updating Research OS safely
+## 安全升级
 
-1. Run `sync-push` or commit all `data/` changes.
-2. Pull or apply the code upgrade.
-3. Run `npm install` if `package.json` or `package-lock.json` changed.
-4. Run `npm test` and `npm run build`.
-5. Start normally and inspect Dashboard.
+1. 执行同步脚本，或手工提交全部 `data/` 改动。
+2. 拉取或应用代码更新。
+3. 如果 `package.json` 或 `package-lock.json` 变化，执行 `npm install`。
+4. 执行 `npm test` 和 `npm run build`。
+5. 启动系统并检查总览。
 
-Application upgrades should never overwrite `data/`. The `schemaVersion` in `data/settings.json` is reserved for explicit future migrations. Keep a Git tag or backup before a major version upgrade.
+代码升级不应覆盖 `data/`。`data/settings.json` 中的 `schemaVersion` 用于未来显式的数据迁移。重大升级前建议创建 Git 标签或额外备份。
 
-## Architecture
+## 目录结构
 
 ```text
-app/                    Next.js pages and local API routes
-components/             application shell, module pages, editors, UI primitives
-lib/types.ts            canonical entity contracts
-lib/domain.ts           pure GPA, search, priority, and deadline logic
-lib/store.ts            atomic JSON persistence and ID generation
-data/                   durable user-owned records
-docs/architecture.md    entity relationships and extension boundaries
-tests/                  persistence and domain tests
+app/                    Next.js 页面与本地接口
+components/             应用外壳、模块页面、编辑器与 UI 组件
+lib/types.ts            统一实体类型
+lib/domain.ts           GPA、搜索、重点任务和截止日期逻辑
+lib/store.ts            JSON 原子存储与 ID 生成
+data/                   用户持久数据
+docs/architecture.md    实体关系与扩展边界
+tests/                  数据持久化与业务逻辑测试
 ```
 
-The UI never reads files directly. It uses `/api/data` and `/api/entities`; the API delegates to `lib/store.ts`. This keeps data, business logic, and rendering separable.
+界面不会直接读写文件，而是调用 `/api/data` 与 `/api/entities`；接口再调用 `lib/store.ts`。这样可以将数据、业务规则和界面分离。
 
-## Quality checks
+## 质量检查
 
 ```bash
 npm test
+npm run lint
 npm run build
-# or both
+
+# 测试和构建一起执行
 npm run check
 ```
 
-Tests cover configurable GPA, deadline ordering, priority ordering, cross-module search, create/edit/archive operations, atomic saving, and persistence after a store restart.
+测试覆盖可配置 GPA、截止日期排序、当前重点排序、跨模块搜索、创建、编辑、归档、原子保存和重新启动后的数据持久化。
 
-## Known MVP limitations
+## 当前限制
 
-- Designed for one local user/process. Do not run multiple Research OS server processes against the same `data/` directory.
-- JSON works well for personal scale, but very large paper libraries may eventually benefit from an indexed read model while retaining JSON as the source of truth.
-- Git cannot prevent conflicts when two devices edit the same collection before syncing.
-- Paper metadata is manual; Zotero is intentionally not connected yet.
-- No calendar, GitHub API, notifications, authentication, or AI is included.
-- Progress visualizations summarize explicit milestones rather than inferring progress from time spent.
+- 当前按单个本地用户、单个运行进程设计，不应同时启动多个服务写入同一 `data/` 目录。
+- JSON 适合个人规模；论文库非常大以后，可以增加索引层，但仍以 JSON 作为可同步的数据源。
+- 两台设备在同步前同时编辑同一个集合文件，Git 仍可能产生冲突。
+- 论文元数据目前手工录入，尚未连接 Zotero。
+- 尚未接入日历、GitHub API、系统通知、登录或 AI。
+- 进度统计依据明确记录的里程碑，不会根据学习时长自动推测。
 
-## Future development
+## 后续开发方向
 
-1. **Zotero Integration** — adapter using `source.provider`, `libraryId`, and `externalId`; metadata import without replacing personal notes.
-2. **Calendar Integration** — optional read/import adapter for deadline-bearing events.
-3. **GitHub API** — connect research-owned repositories and non-research projects while preserving their separate domains.
-4. **Automatic Statistics** — semester trends, research throughput, paper reading cadence, stalled-item reports.
-5. **AI Assistant** — strictly optional local/bring-your-own-provider layer for review summaries and paper synthesis; never required for core use.
+1. **Zotero 集成**：使用 `source.provider`、`libraryId` 和 `externalId` 导入元数据，并保留个人笔记。
+2. **日历集成**：可选导入带截止日期的事件。
+3. **GitHub API**：连接科研代码仓库和普通项目，同时保持两类项目分离。
+4. **自动统计**：成绩趋势、科研推进量、论文阅读节奏和停滞事项报告。
+5. **AI 助手**：未来可选的复盘总结和论文梳理功能，但绝不成为基础功能的必需依赖。
 
-## Privacy
+## 隐私
 
-Research OS makes no external API calls and requires no account or API key. Privacy depends on where you store and sync the repository. Use a GitHub **Private** repository and avoid committing secrets, licensed papers, sensitive research data, or participant data.
+Research OS 不会调用外部 API，也不要求账号或 API Key。隐私取决于仓库的存储与同步方式：必须使用 GitHub **Private 私有仓库**，并避免提交密码、密钥、受版权保护的论文全文、敏感研究数据或参与者信息。

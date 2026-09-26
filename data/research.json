@@ -1,7 +1,7 @@
 [
   {
     "id": "research_scheduling", "createdAt": "2026-09-10T12:00:00.000Z", "updatedAt": "2026-09-24T12:00:00.000Z", "tags": ["AI", "scheduling", "OR"],
-    "name": "AI + Project Scheduling", "advisor": "示例导师", "collaborators": [], "startDate": "2026-09-10", "status": "in_progress", "expectedCompletion": "2027-05-31", "stage": "Literature Review",
+    "name": "AI + 项目调度", "advisor": "示例导师", "collaborators": [], "startDate": "2026-09-10", "status": "in_progress", "expectedCompletion": "2027-05-31", "stage": "文献综述",
     "researchQuestion": "学习型启发式能否在异构项目调度实例上获得稳定泛化？", "background": "项目调度问题具有重要应用价值，但传统启发式依赖人工设计。",
     "literatureReview": "正在整理学习型组合优化与 RCPSP 两条文献线。", "researchGap": "跨规模、跨分布泛化仍缺乏系统验证。", "hypothesis": "结构感知表示能提高跨分布泛化。",
     "method": "待确定", "dataset": "PSPLIB（计划）", "experiment": "", "results": "", "writing": "", "submission": "",

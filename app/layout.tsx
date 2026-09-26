@@ -4,7 +4,7 @@ import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "Research OS",
-  description: "Local-first research and learning command center.",
+  description: "本地优先的个人科研与学习控制台。",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

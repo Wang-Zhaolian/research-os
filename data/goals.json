@@ -1,8 +1,8 @@
 [
   {
     "id": "goal_foundation", "createdAt": "2026-09-11T12:00:00.000Z", "updatedAt": "2026-09-24T12:00:00.000Z", "tags": ["ML", "OR", "research"],
-    "title": "Build ML + OR Research Foundation", "type": "year", "timeframe": "大二学年", "status": "in_progress", "description": "建立足以支撑独立科研的数学、机器学习与运筹优化基础。",
+    "title": "建立机器学习与运筹科研基础", "type": "year", "timeframe": "大二学年", "status": "in_progress", "description": "建立足以支撑独立科研的数学、机器学习与运筹优化基础。",
     "milestones": [{ "id": "milestone_math", "title": "完成优化与概率核心基础", "status": "in_progress", "targetDate": "2027-01-15" }, { "id": "milestone_research", "title": "完成一个完整科研项目", "status": "not_started", "targetDate": "2027-06-30" }, { "id": "milestone_project", "title": "独立完成两个可展示项目", "status": "in_progress", "targetDate": "2027-05-31" }],
-    "linkedItems": [{ "type": "learning", "id": "learning_optimization", "label": "Optimization Theory" }, { "type": "research", "id": "research_scheduling", "label": "AI + Project Scheduling" }], "nextAction": "维持本周优化学习与研究问题两条主线"
+    "linkedItems": [{ "type": "learning", "id": "learning_optimization", "label": "优化理论" }, { "type": "research", "id": "research_scheduling", "label": "AI + 项目调度" }], "nextAction": "维持本周优化学习与研究问题两条主线"
   }
 ]
