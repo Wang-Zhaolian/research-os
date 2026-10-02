@@ -1,32 +1,41 @@
 import { NextResponse } from "next/server";
+import { errorResponse, readJson } from "@/lib/api";
 import { store } from "@/lib/store";
+import { DataError } from "@/lib/validation";
 import type { AnyEntity, CollectionKey } from "@/lib/types";
+type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents">;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const collections = new Set<CollectionKey>(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "reviews"]);
-const valid = (value: string | null): value is CollectionKey => Boolean(value && collections.has(value as CollectionKey));
+const collections = new Set<CollectionKey>(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"]);
+const valid = (value: string | null): value is EditableCollection => Boolean(value && collections.has(value as CollectionKey));
 
 export async function POST(request: Request) {
-  const body = await request.json() as { collection?: string; entity?: Partial<AnyEntity> };
-  const collection = body.collection ?? null;
-  if (!valid(collection) || !body.entity) return NextResponse.json({ error: "Invalid entity request" }, { status: 400 });
-  return NextResponse.json(await store.upsert(collection, body.entity), { status: 201 });
+  try {
+    const body = await readJson<{ collection?: string; entity?: Partial<AnyEntity> & { id?: string } }>(request);
+    const collection = body.collection ?? null;
+    if (!valid(collection) || !body.entity || body.entity.id) throw new DataError("新建记录请求无效；新记录不能指定 ID");
+    return NextResponse.json(await store.upsert(collection, body.entity), { status: 201 });
+  } catch (error) { return errorResponse(error); }
 }
 
 export async function PUT(request: Request) {
-  const body = await request.json() as { collection?: string; entity?: Partial<AnyEntity> & { id?: string } };
-  const collection = body.collection ?? null;
-  if (!valid(collection) || !body.entity?.id) return NextResponse.json({ error: "Invalid update request" }, { status: 400 });
-  return NextResponse.json(await store.upsert(collection, body.entity));
+  try {
+    const body = await readJson<{ collection?: string; entity?: Partial<AnyEntity> & { id?: string } }>(request);
+    const collection = body.collection ?? null;
+    if (!valid(collection) || !body.entity?.id) throw new DataError("更新请求无效");
+    return NextResponse.json(await store.upsert(collection, body.entity));
+  } catch (error) { return errorResponse(error); }
 }
 
 export async function DELETE(request: Request) {
-  const url = new URL(request.url);
-  const collection = url.searchParams.get("collection");
-  const id = url.searchParams.get("id");
-  if (!valid(collection) || !id) return NextResponse.json({ error: "Invalid delete request" }, { status: 400 });
-  await store.archive(collection, id, url.searchParams.get("hard") === "1");
-  return NextResponse.json({ ok: true });
+  try {
+    const url = new URL(request.url);
+    const collection = url.searchParams.get("collection");
+    const id = url.searchParams.get("id");
+    if (!valid(collection) || !id) throw new DataError("删除请求无效");
+    await store.archive(collection, id, url.searchParams.get("hard") === "1");
+    return NextResponse.json({ ok: true });
+  } catch (error) { return errorResponse(error); }
 }

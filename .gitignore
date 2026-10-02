@@ -44,3 +44,7 @@ next-env.d.ts
 /.codex/
 /outputs/
 /work/
+# Local recovery snapshots and an in-flight JSON transaction journal are never synced.
+/data/.backups/
+/data/.pending-transaction.json
+/data/*.tmp

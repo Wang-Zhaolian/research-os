@@ -1,2 +1,5 @@
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0sync-pull.ps1"
+setlocal
+cd /d "%~dp0"
+node scripts\sync.mjs pull
+if errorlevel 1 exit /b 1

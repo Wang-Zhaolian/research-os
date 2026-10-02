@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
 set -eu
-cd "$(dirname "$0")"
-if [ ! -d node_modules ]; then npm install; fi
-npm run dev
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+cd "$ROOT_DIR"
+exec node scripts/launch.mjs

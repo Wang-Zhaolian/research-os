@@ -1,9 +1,12 @@
 export type EntityKind = "task" | "learning" | "research" | "paper" | "project" | "competition" | "goal" | "grade";
-export type CollectionKey = "tasks" | "learning" | "research" | "papers" | "projects" | "competitions" | "goals" | "grades" | "reviews";
+export type ParentEntityKind = Exclude<EntityKind, "task" | "grade">;
+export type CollectionKey = "tasks" | "learning" | "research" | "papers" | "projects" | "competitions" | "goals" | "grades" | "reviews" | "progressEvents";
 export type Status = "not_started" | "in_progress" | "blocked" | "completed" | "paused" | "delayed";
 export type Priority = "high" | "medium" | "low";
 
 export interface EntityRef { type: EntityKind; id: string; label?: string }
+export type ParentEntityRef = Omit<EntityRef, "type"> & { type: ParentEntityKind };
+export interface MilestoneRef { goalId: string; milestoneId: string }
 export interface BaseEntity {
   id: string;
   createdAt: string;
@@ -18,9 +21,13 @@ export interface Task extends BaseEntity {
   priority: Priority;
   status: Status;
   dueDate?: string;
-  relation?: EntityRef;
+  nextAction: string;
+  primaryParent?: ParentEntityRef;
+  relatedRefs: EntityRef[];
+  milestoneRefs: MilestoneRef[];
+  planningState: "inbox" | "needs_parent" | "week" | "later";
+  plannedWeek?: string;
   notes: string;
-  weekBucket: "this_week" | "next_week" | "later";
   pinned: boolean;
   pinOrder: number;
   completedAt?: string;
@@ -48,12 +55,12 @@ export interface ResearchProject extends BaseEntity {
 
 export interface Paper extends BaseEntity {
   title: string; authors: string[]; year?: number; venue: string; doiUrl: string;
-  researchArea: string; status: "to_read" | "skimmed" | "reading" | "read" | "deep_read" | "core";
+  researchArea: string; keywords: string[]; status: "to_read" | "skimmed" | "reading" | "read" | "deep_read" | "core";
   importance: number; relatedResearchIds: string[]; abstract: string;
   researchQuestion: string; coreMethod: string; dataset: string; mainResults: string;
   contribution: string; limitation: string; myUnderstanding: string;
   researchUse: string; worthDeepReading: boolean; nextAction: string;
-  source: { provider: "manual" | "zotero"; externalId?: string; libraryId?: string };
+  source: { provider: "manual" | "zotero"; externalId?: string; libraryId?: string; zoteroLibraryId?: string; zoteroItemId?: string; lastSyncedAt?: string };
 }
 
 export interface PersonalProject extends BaseEntity {
@@ -69,7 +76,7 @@ export interface Competition extends BaseEntity {
   materials: string[]; projectIds: string[];
 }
 
-export interface Milestone { id: string; title: string; status: Status; targetDate?: string }
+export interface Milestone { id: string; title: string; status: Status; targetDate?: string; evidence?: string }
 export interface Goal extends BaseEntity {
   title: string; type: "year" | "semester" | "long_term"; timeframe: string;
   status: Status; description: string; milestones: Milestone[];
@@ -86,6 +93,37 @@ export interface EveningReview extends BaseEntity {
   researchProjectId?: string; researchProgress: string;
   newPaperId?: string; newDeadlineTaskId?: string; priorityTaskIds: string[];
   reflection: string;
+  revision: number;
+  operationIds: string[];
+}
+
+export interface ReviewSubmission {
+  date: string;
+  operationId: string;
+  expectedRevision: number;
+  completeTaskIds: string[];
+  undoTaskIds: string[];
+  progressUpdates: { taskId: string; note: string; nextAction: string }[];
+  unfinishedNote: string;
+  researchProjectId?: string;
+  researchProgress: string;
+  newPaper?: { title: string; url: string };
+  newDeadline?: { title: string; date: string; primaryParent?: ParentEntityRef };
+  inboxPlans: { taskId: string; planningState: "week" | "later"; plannedWeek?: string; primaryParent?: Task["primaryParent"] }[];
+  priorityTaskIds: string[];
+  reflection: string;
+}
+
+export interface ProgressEvent extends BaseEntity {
+  date: string;
+  taskId?: string;
+  parentRef?: EntityRef;
+  milestoneRefs: MilestoneRef[];
+  note: string;
+  nextAction?: string;
+  kind: "progress" | "completed" | "unblocked" | "replan";
+  previousStatus?: Status;
+  reviewDate?: string;
 }
 
 export interface GpaRule { minScore: number; point: number; label: string }
@@ -93,12 +131,15 @@ export interface Settings {
   gpa: { scale: number; rules: GpaRule[] };
   demoData: boolean;
   schemaVersion: number;
+  timeZone: string;
+  stalledDays: number;
 }
 
 export interface Database {
   tasks: Task[]; learning: LearningCourse[]; research: ResearchProject[];
   papers: Paper[]; projects: PersonalProject[]; competitions: Competition[];
   goals: Goal[]; grades: Grade[]; reviews: EveningReview[]; settings: Settings;
+  progressEvents: ProgressEvent[];
 }
 
-export type AnyEntity = Task | LearningCourse | ResearchProject | Paper | PersonalProject | Competition | Goal | Grade | EveningReview;
+export type AnyEntity = Task | LearningCourse | ResearchProject | Paper | PersonalProject | Competition | Goal | Grade | EveningReview | ProgressEvent;

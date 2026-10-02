@@ -12,15 +12,19 @@
     "priority": "high",
     "status": "in_progress",
     "dueDate": "2026-09-30",
-    "relation": {
+    "notes": "把文献缺口收敛成可验证的问题。",
+    "pinned": true,
+    "pinOrder": 1,
+    "nextAction": "",
+    "primaryParent": {
       "type": "research",
       "id": "research_scheduling",
       "label": "AI + 项目调度"
     },
-    "notes": "把文献缺口收敛成可验证的问题。",
-    "weekBucket": "this_week",
-    "pinned": true,
-    "pinOrder": 1
+    "relatedRefs": [],
+    "milestoneRefs": [],
+    "planningState": "week",
+    "plannedWeek": "2026-09-28"
   },
   {
     "id": "task_optimization_ch3",
@@ -34,15 +38,19 @@
     "priority": "high",
     "status": "in_progress",
     "dueDate": "2026-10-02",
-    "relation": {
+    "notes": "完成习题 3.1–3.8。",
+    "pinned": true,
+    "pinOrder": 2,
+    "nextAction": "",
+    "primaryParent": {
       "type": "learning",
       "id": "learning_optimization",
       "label": "优化理论"
     },
-    "notes": "完成习题 3.1–3.8。",
-    "weekBucket": "this_week",
-    "pinned": true,
-    "pinOrder": 2
+    "relatedRefs": [],
+    "milestoneRefs": [],
+    "planningState": "week",
+    "plannedWeek": "2026-09-28"
   },
   {
     "id": "task_paper_read",
@@ -56,14 +64,18 @@
     "priority": "medium",
     "status": "not_started",
     "dueDate": "2026-10-05",
-    "relation": {
+    "notes": "重点看训练目标与泛化限制。",
+    "pinned": true,
+    "pinOrder": 3,
+    "nextAction": "",
+    "primaryParent": {
       "type": "paper",
       "id": "paper_nco",
       "label": "神经组合优化论文"
     },
-    "notes": "重点看训练目标与泛化限制。",
-    "weekBucket": "this_week",
-    "pinned": true,
-    "pinOrder": 3
+    "relatedRefs": [],
+    "milestoneRefs": [],
+    "planningState": "week",
+    "plannedWeek": "2026-09-28"
   }
 ]

@@ -1,24 +1,22 @@
 import { NextResponse } from "next/server";
-import { defaultSettings, store } from "@/lib/store";
-import type { Database, Settings } from "@/lib/types";
+import { errorResponse, readJson } from "@/lib/api";
+import { store } from "@/lib/store";
+import { DataError } from "@/lib/validation";
+import type { Settings } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(await store.read(), { headers: { "Cache-Control": "no-store" } });
+  try { return NextResponse.json(await store.read(), { headers: { "Cache-Control": "no-store" } }); }
+  catch (error) { return errorResponse(error); }
 }
 
 export async function PUT(request: Request) {
-  const body = await request.json() as { settings?: Settings; reset?: boolean };
-  if (body.reset) {
-    const empty: Database = {
-      tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [],
-      settings: { ...defaultSettings, demoData: false },
-    };
-    await store.replace(empty);
-    return NextResponse.json(empty);
-  }
-  if (!body.settings) return NextResponse.json({ error: "Missing settings" }, { status: 400 });
-  return NextResponse.json(await store.saveSettings(body.settings));
+  try {
+    const body = await readJson<{ settings?: Settings; reset?: boolean }>(request);
+    if (body.reset) throw new DataError("全库清空接口已移除；请在归档页逐项归档记录", 410);
+    if (!body.settings) throw new DataError("缺少设置");
+    return NextResponse.json(await store.saveSettings(body.settings));
+  } catch (error) { return errorResponse(error); }
 }

@@ -1,4 +1,28 @@
 [
-  { "id": "grade_probability", "createdAt": "2026-09-11T12:00:00.000Z", "updatedAt": "2026-09-11T12:00:00.000Z", "tags": ["core"], "semester": "2025-2026-2", "course": "概率论与数理统计", "credits": 4, "score": 91, "courseType": "专业基础", "isCore": true },
-  { "id": "grade_programming", "createdAt": "2026-09-11T12:00:00.000Z", "updatedAt": "2026-09-11T12:00:00.000Z", "tags": [], "semester": "2025-2026-2", "course": "程序设计基础", "credits": 3, "score": 88, "courseType": "专业基础", "isCore": true }
+  {
+    "id": "grade_probability",
+    "createdAt": "2026-09-11T12:00:00.000Z",
+    "updatedAt": "2026-09-11T12:00:00.000Z",
+    "tags": [
+      "core"
+    ],
+    "semester": "2025-2026-2",
+    "course": "概率论与数理统计",
+    "credits": 4,
+    "score": 91,
+    "courseType": "专业基础",
+    "isCore": true
+  },
+  {
+    "id": "grade_programming",
+    "createdAt": "2026-09-11T12:00:00.000Z",
+    "updatedAt": "2026-09-11T12:00:00.000Z",
+    "tags": [],
+    "semester": "2025-2026-2",
+    "course": "程序设计基础",
+    "credits": 3,
+    "score": 88,
+    "courseType": "专业基础",
+    "isCore": true
+  }
 ]
