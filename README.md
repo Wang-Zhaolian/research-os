@@ -121,11 +121,11 @@ Windows 可双击 `sync-pull.cmd` 和 `sync-push.cmd`；macOS 使用：
 ./sync-push.sh
 ```
 
-首次使用前确认 GitHub 远端是 **Private**，并在各设备登录 GitHub。若 GitHub CLI 未登录，可运行 `gh auth login`；也可以按 Git 的浏览器认证提示登录。冲突时先复制整个 `data/` 做额外备份，再逐文件人工合并；不要让两台设备同时编辑同一份 JSON。凭据和附件原件需在每台设备分别准备，或通过加密的私人备份单独迁移。
+首次使用前确认 GitHub 远端是 **Private**，并在各设备登录 GitHub。当前工作副本使用 SSH 地址 `git@github.com:Wang-Zhaolian/research-os.git`；首次换电脑时运行 `gh auth login --git-protocol ssh`，选择或配置 SSH 密钥后，用 `ssh -T git@github.com` 验证认证。HTTPS 远端也可用，但需把本地 `origin` 设置成 HTTPS 并确保当前网络能访问 GitHub Git 服务。冲突时先复制整个 `data/` 做额外备份，再逐文件人工合并；不要让两台设备同时编辑同一份 JSON。凭据和附件原件需在每台设备分别准备，或通过加密的私人备份单独迁移。
 
 ## 升级与恢复
 
-升级前先退出应用、检查 `git status`，为当前 JSON 建立 Git 提交或副本，然后拉取代码并重新启动。应用会按 schema 版本迁移数据；正常升级不会重置、覆盖或重新生成演示数据。保持项目中的 `data/`，不要用新目录覆盖旧数据。需要恢复时，在设置页先预览快照，再确认恢复整组数据；恢复前系统会再备份当前状态。
+升级前先关闭旧的 Research OS 启动窗口（旧的生产服务不会热加载代码），检查 `git status`，为当前 JSON 建立 Git 提交或副本，然后拉取代码并重新启动。应用会按 schema 版本迁移数据；正常升级不会重置、覆盖或重新生成演示数据。保持项目中的 `data/`，不要用新目录覆盖旧数据。需要恢复时，在设置页先预览快照，再确认恢复整组数据；恢复前系统会再备份当前状态。
 
 ## 技术结构与检查
 
