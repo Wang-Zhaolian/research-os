@@ -1,6 +1,6 @@
-export type EntityKind = "task" | "learning" | "research" | "paper" | "project" | "competition" | "goal" | "grade";
+export type EntityKind = "task" | "learning" | "research" | "paper" | "project" | "competition" | "goal" | "grade" | "internship" | "pending_item" | "active_plan" | "achievement";
 export type ParentEntityKind = Exclude<EntityKind, "task" | "grade">;
-export type CollectionKey = "tasks" | "learning" | "research" | "papers" | "projects" | "competitions" | "goals" | "grades" | "reviews" | "progressEvents";
+export type CollectionKey = "tasks" | "learning" | "research" | "papers" | "projects" | "competitions" | "goals" | "grades" | "pendingItems" | "activePlans" | "achievements" | "internships" | "attachments" | "reviews" | "progressEvents";
 export type Status = "not_started" | "in_progress" | "blocked" | "completed" | "paused" | "delayed";
 export type Priority = "high" | "medium" | "low";
 
@@ -13,6 +13,40 @@ export interface BaseEntity {
   updatedAt: string;
   tags: string[];
   archived?: boolean;
+}
+
+export interface EvidenceRef { type: EntityKind | "attachment"; id: string; subId?: string; label?: string; sourceLocation?: string }
+export interface StageCategory { id: string; name: string; icon: string; color: string; sortOrder: number; archived?: boolean }
+export interface PlanningHorizon { id: string; name: string; minDays?: number; maxDays?: number; sortOrder: number; archived?: boolean }
+
+export interface PendingItem extends BaseEntity {
+  title: string; categoryId: string; description: string; desiredOutcome: string;
+  status: "open" | "promoted" | "cancelled"; targetDate?: string; linkedRefs: EntityRef[];
+  evidenceRefs: EvidenceRef[]; promotedPlanId?: string;
+}
+
+export interface ActivePlan extends BaseEntity {
+  title: string; categoryId: string; horizonId: string; status: Status;
+  description: string; nextAction: string; startDate?: string; targetDate?: string;
+  linkedRefs: EntityRef[]; taskIds: string[]; sourcePendingId?: string; achievementId?: string;
+  completedAt?: string;
+}
+
+export interface Achievement extends BaseEntity {
+  title: string; categoryId: string; summary: string; achievedDate?: string;
+  linkedRefs: EntityRef[]; evidenceRefs: EvidenceRef[]; sourcePlanId?: string;
+  verification: "user_recorded" | "source_supported";
+}
+
+export interface Internship extends BaseEntity {
+  organization: string; role: string; location: string; startDate?: string; endDate?: string;
+  status: Status; description: string; responsibilities: string; outcomes: string;
+  mentor: string; evidenceRefs: EvidenceRef[]; linkedPlanId?: string;
+}
+
+export interface LocalAttachment extends BaseEntity {
+  filename: string; mimeType: string; size: number; sha256: string;
+  localFileId: string; extractedSummary?: string; sourceKind: "upload" | "pasted_text";
 }
 
 export interface Task extends BaseEntity {
@@ -31,6 +65,7 @@ export interface Task extends BaseEntity {
   pinned: boolean;
   pinOrder: number;
   completedAt?: string;
+  activePlanId?: string;
 }
 
 export interface Topic { id: string; title: string; status: Status }
@@ -38,7 +73,7 @@ export interface LearningModule { id: string; title: string; status: Status; top
 export interface LearningCourse extends BaseEntity {
   name: string; field: string; status: Status; materials: string[];
   progressSummary: string; completedContent: string; currentContent: string;
-  nextAction: string; notes: string; modules: LearningModule[];
+  nextAction: string; notes: string; modules: LearningModule[]; syllabusComplete: boolean;
 }
 
 export interface MeetingNote { id: string; date: string; title: string; notes: string; nextActions: string[] }
@@ -89,6 +124,7 @@ export interface Grade extends BaseEntity {
   gradingType: "percentage" | "pass_fail" | "exempt";
   includeInAverage: boolean;
   result?: "pass" | "fail";
+  evidenceRefs?: EvidenceRef[];
 }
 
 export interface PersonalProfile {
@@ -108,6 +144,7 @@ export interface ModelConnection {
   baseUrl?: string;
   protocol?: "chat_completions" | "responses";
   modelId?: string;
+  verifiedAt?: string;
   createdAt: string;
 }
 
@@ -121,11 +158,12 @@ export interface AIConversationMessage {
   usesGradeContext?: boolean;
   citations?: { collection: string; id: string; title: string }[];
   proposal?: AIProposal;
+  attachmentRefs?: Pick<LocalAttachment, "id" | "filename" | "mimeType" | "sha256" | "extractedSummary">[];
 }
 
 export interface AIProposalChange {
-  action: "create" | "update" | "progress" | "priorities";
-  collection: Exclude<CollectionKey, "reviews" | "progressEvents">;
+  action: "create" | "update" | "progress" | "priorities" | "promote_pending" | "complete_plan";
+  collection: Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">;
   id?: string;
   entity: Record<string, unknown>;
   explanation: string;
@@ -148,6 +186,7 @@ export interface AIConversation {
   messages: AIConversationMessage[];
   allowGrades: boolean;
   dataEpoch: string;
+  appliedOperations?: { proposalId: string; operationId: string; appliedAt: string; ids: string[] }[];
 }
 
 export interface EveningReview extends BaseEntity {
@@ -201,6 +240,8 @@ export interface Settings {
   gpaConfigured: boolean;
   modelConnections: ModelConnection[];
   defaultModelConnectionId: string;
+  stageCategories: StageCategory[];
+  planningHorizons: PlanningHorizon[];
 }
 
 export interface Database {
@@ -208,7 +249,9 @@ export interface Database {
   papers: Paper[]; projects: PersonalProject[]; competitions: Competition[];
   goals: Goal[]; grades: Grade[]; reviews: EveningReview[]; settings: Settings;
   progressEvents: ProgressEvent[];
+  pendingItems: PendingItem[]; activePlans: ActivePlan[]; achievements: Achievement[];
+  internships: Internship[]; attachments: LocalAttachment[];
   profile: PersonalProfile;
 }
 
-export type AnyEntity = Task | LearningCourse | ResearchProject | Paper | PersonalProject | Competition | Goal | Grade | EveningReview | ProgressEvent;
+export type AnyEntity = Task | LearningCourse | ResearchProject | Paper | PersonalProject | Competition | Goal | Grade | PendingItem | ActivePlan | Achievement | Internship | LocalAttachment | EveningReview | ProgressEvent;

@@ -7,7 +7,7 @@ import type { CollectionKey } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents">;
+type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">;
 const allowed = new Set<EditableCollection>(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"]);
 export async function POST(request: Request) {
   try {

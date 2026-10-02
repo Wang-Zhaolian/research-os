@@ -9,7 +9,7 @@ const task = (overrides: Partial<Task> = {}): Task => ({
   id: "task_1", createdAt: stamp, updatedAt: stamp, tags: [], title: "Read paper", category: "论文", priority: "high", status: "not_started",
   nextAction: "Read section 2", relatedRefs: [], milestoneRefs: [], planningState: "inbox", notes: "", pinned: false, pinOrder: 1, ...overrides,
 });
-const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: defaultSettings });
+const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], pendingItems: [], activePlans: [], achievements: [], internships: [], attachments: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: defaultSettings });
 
 test("GPA uses configurable weighted rules", () => {
   const grades: Grade[] = [

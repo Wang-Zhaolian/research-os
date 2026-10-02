@@ -4,63 +4,75 @@
   "timeZone": "Asia/Shanghai",
   "stalledDays": 7,
   "dataEpoch": "32897d46-abb0-4c7c-8be4-6554dd41cede",
-  "dataRevision": 1,
+  "dataRevision": 4,
   "gpaPresetId": "swufe-2024",
-  "gpaConfigured": false,
-  "modelConnections": [],
-  "defaultModelConnectionId": "",
+  "gpaConfigured": true,
+  "modelConnections": [
+    {
+      "id": "chatgpt-subscription",
+      "kind": "chatgpt_subscription",
+      "name": "ChatGPT 订阅",
+      "createdAt": "2026-10-02T11:42:01.337Z"
+    }
+  ],
+  "defaultModelConnectionId": "chatgpt-subscription",
   "gpa": {
     "scale": 4,
     "rules": [
       {
         "minScore": 90,
         "point": 4,
-        "label": "A"
+        "label": "90–100"
       },
       {
         "minScore": 85,
         "point": 3.7,
-        "label": "A-"
+        "label": "85–89"
       },
       {
-        "minScore": 82,
+        "minScore": 80,
         "point": 3.3,
-        "label": "B+"
+        "label": "80–84"
       },
       {
-        "minScore": 78,
+        "minScore": 76,
         "point": 3,
-        "label": "B"
+        "label": "76–79"
       },
       {
-        "minScore": 75,
+        "minScore": 73,
         "point": 2.7,
-        "label": "B-"
+        "label": "73–75"
       },
       {
-        "minScore": 72,
+        "minScore": 70,
         "point": 2.3,
-        "label": "C+"
+        "label": "70–72"
       },
       {
-        "minScore": 68,
+        "minScore": 66,
         "point": 2,
-        "label": "C"
+        "label": "66–69"
       },
       {
-        "minScore": 64,
-        "point": 1.5,
-        "label": "D"
+        "minScore": 63,
+        "point": 1.7,
+        "label": "63–65"
+      },
+      {
+        "minScore": 61,
+        "point": 1.3,
+        "label": "61–62"
       },
       {
         "minScore": 60,
         "point": 1,
-        "label": "D-"
+        "label": "60"
       },
       {
         "minScore": 0,
         "point": 0,
-        "label": "F"
+        "label": "0–59"
       }
     ]
   }

@@ -1,8 +1,14 @@
 {
-  "displayName": "",
-  "university": "",
-  "major": "",
-  "currentSemester": "",
-  "developmentDirections": [],
-  "onboardingComplete": false
+  "displayName": "汪旭晗",
+  "university": "西南财经大学",
+  "major": "大数据管理与应用",
+  "currentSemester": "2026秋季学期",
+  "developmentDirections": [
+    "机器学习",
+    "运筹优化",
+    "量化金融",
+    "统计"
+  ],
+  "onboardingComplete": true,
+  "entryYear": 2025
 }

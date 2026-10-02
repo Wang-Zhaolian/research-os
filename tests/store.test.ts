@@ -7,11 +7,11 @@ import { createStore, defaultSettings } from "../lib/store.ts";
 import type { AIConversation, AIProposalChange, Database, LearningCourse, ResearchProject, ReviewSubmission, Task } from "../lib/types.ts";
 
 const stamp = "2026-09-25T00:00:00.000Z";
-const learning = (id = "learning_1"): LearningCourse => ({ id, createdAt: stamp, updatedAt: stamp, tags: [], name: "优化理论", field: "运筹优化", status: "in_progress", materials: [], progressSummary: "", completedContent: "", currentContent: "", nextAction: "读对偶理论", notes: "", modules: [] });
+const learning = (id = "learning_1"): LearningCourse => ({ id, createdAt: stamp, updatedAt: stamp, tags: [], name: "优化理论", field: "运筹优化", status: "in_progress", materials: [], progressSummary: "", completedContent: "", currentContent: "", nextAction: "读对偶理论", notes: "", modules: [], syllabusComplete: false });
 const research = (id = "research_1"): ResearchProject => ({ id, createdAt: stamp, updatedAt: stamp, tags: [], name: "AI + 项目调度", advisor: "", collaborators: [], startDate: "2026-09-01", status: "in_progress", stage: "Literature Review", researchQuestion: "", background: "", literatureReview: "", researchGap: "", hypothesis: "", method: "", dataset: "", experiment: "", results: "", writing: "", submission: "", currentTask: "", nextAction: "确定研究问题", deadline: "", blockers: "", recentProgress: "", meetings: [], paperIds: [], resources: [] });
 const task = (overrides: Partial<Task> = {}): Task => ({ id: "task_1", createdAt: stamp, updatedAt: stamp, tags: [], title: "确定研究问题", category: "科研", priority: "high", status: "in_progress", nextAction: "整理文献缺口", primaryParent: { type: "research", id: "research_1" }, relatedRefs: [], milestoneRefs: [], planningState: "week", plannedWeek: "2026-09-21", notes: "", pinned: false, pinOrder: 1, ...overrides });
 const newTask = (overrides: Partial<Task> = {}) => ({ ...task(overrides), id: undefined });
-const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: structuredClone(defaultSettings) });
+const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], pendingItems: [], activePlans: [], achievements: [], internships: [], attachments: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: structuredClone(defaultSettings) });
 const tempRoot = () => mkdtemp(path.join(tmpdir(), "research-os-test-"));
 const submission = (overrides: Partial<ReviewSubmission> = {}): ReviewSubmission => ({ date: "2026-10-02", operationId: "operation-0001", expectedRevision: 0, completeTaskIds: [], undoTaskIds: [], progressUpdates: [], unfinishedNote: "", researchProgress: "", inboxPlans: [], priorityTaskIds: [], reflection: "", ...overrides });
 
@@ -173,7 +173,7 @@ test("v1 migration backs up and preserves tasks, goal links, and research-paper 
     };
     for (const [key, value] of Object.entries(files)) await writeFile(path.join(root, `${key}.json`), JSON.stringify(value));
     const migrated = await createStore(root).read();
-    assert.equal(migrated.settings.schemaVersion, 3);
+    assert.equal(migrated.settings.schemaVersion, 4);
     assert.equal(migrated.tasks.find((item) => item.id === "linked")?.primaryParent?.id, "r1");
     assert.equal(migrated.tasks.find((item) => item.id === "linked")?.planningState, "week");
     assert.equal(migrated.tasks.find((item) => item.id === "linked")?.pinned, true);
@@ -201,6 +201,62 @@ test("v2 migration routes unassociated weekly tasks to the visible needs-parent 
     assert.equal(migrated.tasks[0].plannedWeek, undefined);
     assert.equal(migrated.tasks[0].pinned, false);
     assert.equal(migrated.tasks[0].title, orphan.title);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("v3 migration keeps the user profile and GPA setup, defaults AI to subscription, and restores a v3 snapshot", async () => {
+  const root = await tempRoot();
+  try {
+    const profile = { displayName: "小吴", university: "西南财经大学", major: "统计学", entryYear: 2024, currentSemester: "大二上", developmentDirections: ["机器学习", "运筹优化"], onboardingComplete: true };
+    const settings = { ...structuredClone(defaultSettings), schemaVersion: 3, gpaConfigured: true, gpa: { scale: 4, rules: [{ minScore: 87, point: 3.8, label: "H" }] }, modelConnections: [{ id: "custom", kind: "openai_compatible", name: "Legacy", createdAt: stamp }, { id: "sub", kind: "chatgpt_subscription", name: "ChatGPT", createdAt: stamp }], defaultModelConnectionId: "custom" } as unknown as Database["settings"];
+    for (const key of ["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "reviews", "progressEvents"]) await writeFile(path.join(root, `${key}.json`), JSON.stringify([]));
+    await writeFile(path.join(root, "profile.json"), JSON.stringify(profile));
+    await writeFile(path.join(root, "settings.json"), JSON.stringify(settings));
+    const store = createStore(root); const migrated = await store.read();
+    assert.equal(migrated.settings.schemaVersion, 4);
+    assert.deepEqual(migrated.profile, profile);
+    assert.deepEqual(migrated.settings.gpa.rules, settings.gpa.rules);
+    assert.equal(migrated.settings.gpaConfigured, true);
+    assert.equal(migrated.settings.defaultModelConnectionId, "sub");
+    assert.equal(migrated.settings.stageCategories.length > 0, true);
+    const backup = (await store.listBackups()).find((item) => item.schemaVersion === 3);
+    assert.ok(backup?.valid);
+    const preview = await store.previewRestore(backup.id);
+    assert.equal(preview.profile?.displayName, "小吴");
+    const restored = await store.restoreBackup({ id: backup.id, expectedEpoch: migrated.settings.dataEpoch, expectedRevision: migrated.settings.dataRevision, confirmation: "恢复此备份" });
+    const afterRestore = await createStore(root).read();
+    assert.equal(afterRestore.settings.dataEpoch, restored.dataEpoch);
+    assert.equal(afterRestore.profile.major, "统计学");
+    assert.equal(afterRestore.settings.defaultModelConnectionId, "sub");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("stage handoff preserves the source, links plan and achievement, and requires linked tasks to finish", async () => {
+  const root = await tempRoot();
+  try {
+    const store = createStore(root); await store.replace(empty());
+    let db = await store.read();
+    const pending = await store.upsert("pendingItems", { title: "建立统计学习基础", categoryId: "learning", description: "系统学习统计", desiredOutcome: "完成概率章节", status: "open", linkedRefs: [], evidenceRefs: [], tags: [] }, db.settings.dataEpoch);
+    db = await store.read();
+    const started = await store.promotePending({ id: pending.id, expectedEpoch: db.settings.dataEpoch, expectedRevision: db.settings.dataRevision, horizonId: "short", nextAction: "学习概率分布" });
+    assert.equal(started.repeated, false);
+    assert.equal((await store.read()).pendingItems[0].status, "promoted");
+    db = await store.read();
+    const plan = db.activePlans.find((item) => item.id === started.plan.id)!;
+    const linkedTask = await store.upsert("tasks", { ...task({ title: "完成概率章节练习", primaryParent: { type: "active_plan", id: plan.id }, activePlanId: plan.id, planningState: "inbox", plannedWeek: undefined, pinned: false }), id: undefined }, db.settings.dataEpoch);
+    assert.equal((await store.read()).activePlans[0].taskIds.includes(linkedTask.id), true);
+    db = await store.read();
+    await assert.rejects(store.completeActivePlan({ id: plan.id, expectedEpoch: db.settings.dataEpoch, expectedRevision: db.settings.dataRevision }), /请先完成关联的 1 项任务/);
+    await store.recordProgress({ taskId: linkedTask.id, note: "章节练习已完成", complete: true }, db.settings.dataEpoch);
+    db = await store.read();
+    const completed = await store.completeActivePlan({ id: plan.id, expectedEpoch: db.settings.dataEpoch, expectedRevision: db.settings.dataRevision });
+    assert.equal(completed.plan.status, "completed");
+    assert.equal(completed.achievement.sourcePlanId, plan.id);
+    assert.equal(completed.achievement.evidenceRefs.some((item) => item.type === "task" && item.id === linkedTask.id), true);
+    assert.equal((await store.read()).pendingItems[0].promotedPlanId, plan.id);
+    const repeated = await store.completeActivePlan({ id: plan.id, expectedEpoch: db.settings.dataEpoch, expectedRevision: db.settings.dataRevision });
+    assert.equal(repeated.repeated, true);
+    assert.equal((await store.read()).achievements.length, 1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -278,7 +334,10 @@ test("AI suggestions are dry-run only until confirmed, support same-batch refere
     ];
     const conversation: AIConversation = { id: "ai_conversation", title: "测试草稿", createdAt: stamp, updatedAt: stamp, messages: [{ id: "ai_message", role: "assistant", text: "建议如下", createdAt: stamp, status: "complete", proposal: { id: "proposal_1", dataEpoch: db.settings.dataEpoch, dataRevision: 0, changes } }], allowGrades: false, dataEpoch: db.settings.dataEpoch };
     await store.saveConversation(conversation, db.settings.dataEpoch);
-    const request = { conversationId: conversation.id, proposalId: "proposal_1", operationId: "operation-ai-0001", indexes: [0, 1], expectedEpoch: db.settings.dataEpoch, expectedRevision: 0 };
+    const persistedConversation = JSON.parse(await readFile(path.join(root, "ai-conversations", `${conversation.id}.json`), "utf8")) as AIConversation;
+    assert.equal(persistedConversation.messages[0]?.proposal, undefined, "unconfirmed AI actions must stay outside Git-synced chat JSON");
+    assert.doesNotMatch(JSON.stringify(persistedConversation), /Personal Quant Platform|定义行情与持仓表/);
+    const request = { conversationId: conversation.id, proposalId: "proposal_1", operationId: "operation-ai-0001", indexes: [0, 1], expectedEpoch: db.settings.dataEpoch, expectedRevision: 0, externalProposal: changes.length ? conversation.messages[0]!.proposal : undefined };
     await store.applyAIProposal({ ...request, dryRun: true });
     assert.equal((await store.read()).projects.length, 0);
     const saved = await store.applyAIProposal(request);
@@ -300,11 +359,42 @@ test("AI proposal rejects illegal fields and stale versions without writing", as
     const changes: AIProposalChange[] = [{ action: "update", collection: "learning", id: "learning_1", explanation: "修改课程", entity: { nextAction: "读线性规划", credential: "must-not-be-stored" } }];
     const conversation: AIConversation = { id: "ai_conversation", title: "非法草稿", createdAt: stamp, updatedAt: stamp, messages: [{ id: "ai_message", role: "assistant", text: "建议", createdAt: stamp, status: "complete", proposal: { id: "proposal_2", dataEpoch: db.settings.dataEpoch, dataRevision: 0, changes } }], allowGrades: false, dataEpoch: db.settings.dataEpoch };
     await store.saveConversation(conversation, db.settings.dataEpoch);
-    const request = { conversationId: conversation.id, proposalId: "proposal_2", operationId: "operation-ai-0002", indexes: [0], expectedEpoch: db.settings.dataEpoch, expectedRevision: 0, dryRun: true };
+    const request = { conversationId: conversation.id, proposalId: "proposal_2", operationId: "operation-ai-0002", indexes: [0], expectedEpoch: db.settings.dataEpoch, expectedRevision: 0, dryRun: true, externalProposal: conversation.messages[0]!.proposal };
     await assert.rejects(store.applyAIProposal(request), /系统字段或未知字段/);
     assert.equal((await store.read()).learning[0].nextAction, "读对偶理论");
     await store.upsert("learning", { id: "learning_1", notes: "人工修改后产生新版本" }, db.settings.dataEpoch);
     await assert.rejects(store.applyAIProposal({ ...request, dryRun: false, editedChanges: [{ ...changes[0], entity: { nextAction: "读线性规划" } }] }), /数据已变化/);
     assert.equal((await store.read()).learning[0].nextAction, "读对偶理论");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("AI cannot summarize a whole course until a user-confirmed complete syllabus and all topics are complete", async () => {
+  const root = await tempRoot();
+  try {
+    const store = createStore(root);
+    const db = empty();
+    db.learning.push({ ...learning(), modules: [{ id: "module_1", title: "第一章", status: "in_progress", topics: [{ id: "topic_1", title: "线性规划", status: "in_progress" }] }] });
+    await store.replace(db);
+    const makeConversation = (id: string, proposalId: string, entity: Record<string, unknown>): AIConversation => ({ id, title: "课程汇总", createdAt: stamp, updatedAt: stamp, messages: [{ id: `${id}_message`, role: "assistant", text: "建议", createdAt: stamp, status: "complete", proposal: { id: proposalId, dataEpoch: db.settings.dataEpoch, dataRevision: 0, changes: [{ action: "update", collection: "learning", id: "learning_1", explanation: "依据课程结构提出总结", entity }] } }], allowGrades: false, dataEpoch: db.settings.dataEpoch });
+    const first = makeConversation("course_ai_1", "proposal_course_1", { status: "completed" });
+    await store.saveConversation(first, db.settings.dataEpoch);
+    const baseRequest = { conversationId: first.id, proposalId: "proposal_course_1", operationId: "operation-course-001", indexes: [0], expectedEpoch: db.settings.dataEpoch, expectedRevision: 0, dryRun: true, externalProposal: first.messages[0]!.proposal };
+    await assert.rejects(store.applyAIProposal(baseRequest), /完整章节清单/);
+    assert.equal((await store.read()).learning[0].status, "in_progress");
+
+    const second = makeConversation("course_ai_2", "proposal_course_2", { syllabusComplete: true });
+    await store.saveConversation(second, db.settings.dataEpoch);
+    await assert.rejects(store.applyAIProposal({ ...baseRequest, conversationId: second.id, proposalId: "proposal_course_2", operationId: "operation-course-002", externalProposal: second.messages[0]!.proposal }), /不能替用户判断/);
+
+    await store.upsert("learning", { id: "learning_1", syllabusComplete: true, modules: [{ id: "module_1", title: "第一章", status: "completed", topics: [{ id: "topic_1", title: "线性规划", status: "completed" }] }] }, db.settings.dataEpoch);
+    const readyDb = await store.read();
+    const third = makeConversation("course_ai_3", "proposal_course_3", { status: "completed" });
+    third.messages[0].proposal!.dataRevision = readyDb.settings.dataRevision;
+    await store.saveConversation(third, readyDb.settings.dataEpoch);
+    const confirmedRequest = { ...baseRequest, conversationId: third.id, proposalId: "proposal_course_3", operationId: "operation-course-003", expectedRevision: readyDb.settings.dataRevision, externalProposal: third.messages[0]!.proposal };
+    await store.applyAIProposal(confirmedRequest);
+    assert.equal((await store.read()).learning[0].status, "in_progress", "dry-run must not save the course completion");
+    await store.applyAIProposal({ ...confirmedRequest, dryRun: false });
+    assert.equal((await store.read()).learning[0].status, "completed");
   } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -3,12 +3,12 @@ import { assertLocalMutation, errorResponse, readJson } from "@/lib/api";
 import { store } from "@/lib/store";
 import { DataError } from "@/lib/validation";
 import type { AnyEntity, CollectionKey } from "@/lib/types";
-type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents">;
+type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const collections = new Set<CollectionKey>(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"]);
+const collections = new Set<CollectionKey>(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "pendingItems", "activePlans", "achievements", "internships"]);
 const valid = (value: string | null): value is EditableCollection => Boolean(value && collections.has(value as CollectionKey));
 
 export async function POST(request: Request) {

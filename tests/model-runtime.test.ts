@@ -8,7 +8,7 @@ const authRoot = await mkdtemp(path.join(os.tmpdir(), "research-os-runtime-test-
 const previousAuthPath = process.env.RESEARCH_OS_AUTH_DIR;
 process.env.RESEARCH_OS_AUTH_DIR = authRoot;
 const { credentialVault } = await import("../lib/credentials.ts");
-const { runChatGptModel } = await import("../lib/model-runtime.ts");
+const { runChatGptModel, summarizeModelError } = await import("../lib/model-runtime.ts");
 const originalFetch = globalThis.fetch;
 let nextEvents: Record<string, unknown>[] = [];
 const requests: Record<string, unknown>[] = [];
@@ -26,6 +26,8 @@ function streamResponse(events: Record<string, unknown>[]) {
 }
 
 test("Pi adapter sends compliant, stateless ChatGPT plan requests and accepts only completed responses", async () => {
+  assert.match(summarizeModelError("subscription_sharing_unsupported_capability"), /手动选择支持该输入的模型/);
+  assert.match(summarizeModelError("Unsupported image input for this model"), /不会自动切换到其他渠道/);
   await credentialVault.saveChatGpt({ issuer: "https://auth.openai.com", subject: "test-subject", clientId: "oaiapp_test", hostId: "urn:uuid:test", accessToken: "test-oauth-token", refreshToken: "test-refresh-token", expiresAt: Date.now() + 3_600_000, scopes: ["chatgpt.tokens.use.direct"] });
   globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
@@ -59,6 +61,19 @@ test("Pi adapter sends compliant, stateless ChatGPT plan requests and accepts on
   const input = request.input as { role: string }[];
   assert.equal(input[0]?.role, "developer");
   assert.equal(input.some((message) => message.role === "system"), false);
+
+  nextEvents = [
+    { type: "response.created", response: { id: "resp_image" } },
+    { type: "response.output_item.added", output_index: 0, item: { ...item, status: "in_progress", content: [] } },
+    { type: "response.output_text.delta", output_index: 0, item_id: item.id, content_index: 0, delta: "图像已收到。" },
+    { type: "response.output_item.done", output_index: 0, item: { ...item, content: [{ type: "output_text", text: "图像已收到。", annotations: [] }] } },
+    { type: "response.completed", response: { id: "resp_image", status: "completed", output: [{ ...item, content: [{ type: "output_text", text: "图像已收到。", annotations: [] }] }] } },
+  ];
+  assert.equal(await runChatGptModel("account-model", "请检查图片", [], undefined, undefined, [{ type: "image", data: "aGVsbG8=", mimeType: "image/png" }]), "图像已收到。");
+  const imageRequest = requests[1];
+  const imageMessage = (imageRequest.input as { role: string; content?: { type: string; image_url?: string }[] }[]).find((message) => message.role === "user");
+  const image = imageMessage?.content?.find((part) => part.type === "input_image");
+  assert.equal(image?.image_url, "data:image/png;base64,aGVsbG8=");
 
   nextEvents = [
     { type: "response.created", response: { id: "resp_incomplete" } },

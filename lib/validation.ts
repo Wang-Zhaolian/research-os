@@ -11,10 +11,32 @@ const isDate = (value: unknown) => typeof value === "string" && /^\d{4}-\d{2}-\d
 const statuses = new Set(["not_started", "in_progress", "blocked", "completed", "paused", "delayed"]);
 const paperStatuses = new Set(["to_read", "skimmed", "reading", "read", "deep_read", "core"]);
 const priorities = new Set(["high", "medium", "low"]);
-const titles: Record<Exclude<CollectionKey, "reviews" | "progressEvents">, string> = {
+const titles: Record<Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">, string> = {
   tasks: "title", learning: "name", research: "name", papers: "title", projects: "name", competitions: "name", goals: "title", grades: "course",
+  pendingItems: "title", activePlans: "title", achievements: "title", internships: "organization",
 };
-const refCollections = { learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals" } as const;
+const refCollections = { task: "tasks", learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals", internship: "internships", pending_item: "pendingItems", active_plan: "activePlans", achievement: "achievements" } as const;
+
+function validateEvidenceRefs(db: Database, value: unknown): void {
+  if (!Array.isArray(value)) throw new DataError("成果证据格式无效");
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.type !== "string" || typeof item.id !== "string") throw new DataError("成果证据引用无效");
+    if (item.type === "attachment") {
+      if (!db.attachments.some((attachment) => attachment.id === item.id && !attachment.archived)) throw new DataError("成果引用的本机附件记录不存在或已归档");
+      continue;
+    }
+    if (item.type === "grade") {
+      if (!db.grades.some((grade) => grade.id === item.id && !grade.archived)) throw new DataError("成果引用的成绩记录不存在");
+      continue;
+    }
+    assertRef(db, { type: item.type, id: item.id }, "成果证据");
+    if (item.subId && item.type === "learning") {
+      const course = db.learning.find((candidate) => candidate.id === item.id);
+      if (!course?.modules.some((module) => module.id === item.subId || module.topics.some((topic) => topic.id === item.subId))) throw new DataError("成果引用的课程章节不存在");
+    }
+    if (item.sourceLocation !== undefined && typeof item.sourceLocation !== "string") throw new DataError("证据来源位置格式无效");
+  }
+}
 
 export function assertDate(value: unknown, label: string, optional = false): void {
   if (optional && (value === "" || value === undefined || value === null)) return;
@@ -34,7 +56,7 @@ export function assertMilestoneRef(db: Database, value: unknown): asserts value 
   if (!goal?.milestones.some((item) => item.id === value.milestoneId)) throw new DataError("目标里程碑不存在或已归档");
 }
 
-export function validateEntity(db: Database, collection: Exclude<CollectionKey, "reviews" | "progressEvents">, entity: AnyEntity, previous?: AnyEntity): void {
+export function validateEntity(db: Database, collection: Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">, entity: AnyEntity, previous?: AnyEntity): void {
   if (!isRecord(entity)) throw new DataError("记录格式无效");
   const current = entity as unknown as Record<string, unknown>;
   if (typeof current[titles[collection]] !== "string" || !(current[titles[collection]] as string).trim()) throw new DataError("名称或标题不能为空");
@@ -42,11 +64,11 @@ export function validateEntity(db: Database, collection: Exclude<CollectionKey, 
   if (collection === "papers") {
     if (!paperStatuses.has(String(current.status))) throw new DataError("论文状态无效");
     if (!Array.isArray(current.authors) || !Array.isArray(current.keywords) || !(current.keywords as unknown[]).every((item) => typeof item === "string")) throw new DataError("论文作者或关键词格式无效");
-  } else if (collection !== "grades" && !statuses.has(String(current.status))) throw new DataError("状态无效");
+  } else if (!["grades", "pendingItems", "achievements"].includes(collection) && !statuses.has(String(current.status))) throw new DataError("状态无效");
   for (const key of ["dueDate", "startDate", "expectedCompletion", "deadline", "date"] as const) if (key in current) assertDate(current[key], key, true);
   const stringArray = (value: unknown) => Array.isArray(value) && value.every((item) => typeof item === "string");
   if (collection === "learning") {
-    if (!stringArray(current.materials) || !Array.isArray(current.modules)) throw new DataError("课程材料或模块格式无效");
+    if (!stringArray(current.materials) || !Array.isArray(current.modules) || typeof current.syllabusComplete !== "boolean") throw new DataError("课程材料、章节清单确认状态或模块格式无效");
     for (const learningModule of current.modules) {
       if (!isRecord(learningModule) || typeof learningModule.id !== "string" || typeof learningModule.title !== "string" || !statuses.has(String(learningModule.status)) || !Array.isArray(learningModule.topics)) throw new DataError("课程模块格式无效");
       for (const topic of learningModule.topics) if (!isRecord(topic) || typeof topic.id !== "string" || typeof topic.title !== "string" || !statuses.has(String(topic.status))) throw new DataError("课程知识点格式无效");
@@ -75,6 +97,7 @@ export function validateEntity(db: Database, collection: Exclude<CollectionKey, 
       if (weekStart(task.plannedWeek!) !== task.plannedWeek) throw new DataError("计划周必须从周一开始");
     }
     if (task.primaryParent) assertRef(db, task.primaryParent, "主关联");
+    if (task.activePlanId && !db.activePlans.some((plan) => plan.id === task.activePlanId && !plan.archived)) throw new DataError("任务所属进行中计划不存在");
     if (task.planningState === "needs_parent" && task.primaryParent) throw new DataError("已有主关联的任务不能标记为待补归属");
     if (!Array.isArray(task.relatedRefs) || !Array.isArray(task.milestoneRefs)) throw new DataError("任务关联格式无效");
     task.relatedRefs.forEach((ref) => assertRef(db, ref, "次要关联"));
@@ -92,6 +115,7 @@ export function validateEntity(db: Database, collection: Exclude<CollectionKey, 
     if (!["percentage", "pass_fail", "exempt"].includes(String(current.gradingType)) || typeof current.includeInAverage !== "boolean") throw new DataError("成绩类型或统计选项无效");
     if (current.gradingType === "percentage" && current.score !== null && current.score !== undefined && (!Number.isFinite(score) || score < 0 || score > 100)) throw new DataError("百分制成绩必须在 0–100 之间");
     if (current.gradingType === "pass_fail" && !["pass", "fail"].includes(String(current.result))) throw new DataError("合格制成绩请选择合格或不合格");
+    if (current.evidenceRefs !== undefined) validateEvidenceRefs(db, current.evidenceRefs);
   }
   if (collection === "goals") {
     if (!Array.isArray(current.milestones) || !Array.isArray(current.linkedItems)) throw new DataError("目标里程碑或关联格式无效");
@@ -117,6 +141,39 @@ export function validateEntity(db: Database, collection: Exclude<CollectionKey, 
   }
   if (collection === "research" && (!Array.isArray(current.paperIds) || !(current.paperIds as unknown[]).every((id) => typeof id === "string" && db.papers.some((item) => item.id === id && !item.archived)))) throw new DataError("关联论文无效");
   if (collection === "competitions" && (!Array.isArray(current.projectIds) || !(current.projectIds as unknown[]).every((id) => typeof id === "string" && db.projects.some((item) => item.id === id && !item.archived)))) throw new DataError("关联项目无效");
+  if (["pendingItems", "activePlans", "achievements", "internships"].includes(collection)) {
+    const categoryId = current.categoryId;
+    if (collection !== "internships" && (typeof categoryId !== "string" || !db.settings.stageCategories.some((item) => item.id === categoryId && !item.archived))) throw new DataError("类别不存在或已归档");
+    if (collection === "pendingItems") {
+      if (!["open", "promoted", "cancelled"].includes(String(current.status)) || typeof current.description !== "string" || typeof current.desiredOutcome !== "string" || !Array.isArray(current.linkedRefs) || !Array.isArray(current.evidenceRefs)) throw new DataError("待开始事项字段无效");
+      (current.linkedRefs as unknown[]).forEach((ref) => assertRef(db, ref, "关联记录"));
+      validateEvidenceRefs(db, current.evidenceRefs);
+      assertDate(current.targetDate, "目标日期", true);
+      if (current.status === "promoted" && (typeof current.promotedPlanId !== "string" || !db.activePlans.some((plan) => plan.id === current.promotedPlanId))) throw new DataError("已启动事项必须关联进行中计划");
+    }
+    if (collection === "activePlans") {
+      if (!statuses.has(String(current.status)) || typeof current.description !== "string" || typeof current.nextAction !== "string" || !Array.isArray(current.linkedRefs) || !Array.isArray(current.taskIds)) throw new DataError("进行中计划字段无效");
+      if (typeof current.horizonId !== "string" || !db.settings.planningHorizons.some((item) => item.id === current.horizonId && !item.archived)) throw new DataError("时间范围不存在或已归档");
+      (current.linkedRefs as unknown[]).forEach((ref) => assertRef(db, ref, "关联记录"));
+      if (!(current.taskIds as unknown[]).every((id) => typeof id === "string" && db.tasks.some((task) => task.id === id && task.activePlanId === current.id))) throw new DataError("计划关联任务无效");
+      assertDate(current.startDate, "开始日期", true); assertDate(current.targetDate, "目标日期", true);
+      if (current.completedAt !== undefined && (typeof current.completedAt !== "string" || Number.isNaN(Date.parse(current.completedAt)))) throw new DataError("计划完成时间无效");
+      if (current.status === "completed" && (typeof current.achievementId !== "string" || !db.achievements.some((item) => item.id === current.achievementId))) throw new DataError("完成计划必须同时建立关联成果卡");
+    }
+    if (collection === "achievements") {
+      if (typeof current.summary !== "string" || !["user_recorded", "source_supported"].includes(String(current.verification)) || !Array.isArray(current.linkedRefs)) throw new DataError("已完成成果字段无效");
+      (current.linkedRefs as unknown[]).forEach((ref) => assertRef(db, ref, "成果关联"));
+      validateEvidenceRefs(db, current.evidenceRefs);
+      assertDate(current.achievedDate, "完成日期", true);
+      if (current.sourcePlanId && !db.activePlans.some((plan) => plan.id === current.sourcePlanId)) throw new DataError("成果来源计划不存在");
+    }
+    if (collection === "internships") {
+      if (!statuses.has(String(current.status)) || typeof current.role !== "string" || typeof current.description !== "string" || typeof current.responsibilities !== "string" || typeof current.outcomes !== "string" || typeof current.mentor !== "string" || typeof current.location !== "string") throw new DataError("实习记录字段无效");
+      assertDate(current.startDate, "实习开始日期", true); assertDate(current.endDate, "实习结束日期", true);
+      validateEvidenceRefs(db, current.evidenceRefs);
+      if (current.linkedPlanId && !db.activePlans.some((plan) => plan.id === current.linkedPlanId)) throw new DataError("实习来源计划不存在");
+    }
+  }
 }
 
 export function validateSettings(settings: Settings): void {
@@ -126,10 +183,12 @@ export function validateSettings(settings: Settings): void {
   if (typeof settings.timeZone !== "string" || !settings.timeZone) throw new DataError("时区不能为空");
   try { new Intl.DateTimeFormat("en-US", { timeZone: settings.timeZone }); } catch { throw new DataError("时区无效"); }
   if (!Number.isInteger(settings.stalledDays) || settings.stalledDays < 1 || settings.stalledDays > 365) throw new DataError("停滞天数需在 1–365 天之间");
-  if (settings.schemaVersion !== 3 || typeof settings.dataEpoch !== "string" || !settings.dataEpoch || !Number.isInteger(settings.dataRevision) || settings.dataRevision < 0) throw new DataError("工作区数据版本无效");
+  if (settings.schemaVersion !== 4 || typeof settings.dataEpoch !== "string" || !settings.dataEpoch || !Number.isInteger(settings.dataRevision) || settings.dataRevision < 0) throw new DataError("工作区数据版本无效");
   if (!Array.isArray(settings.modelConnections) || typeof settings.defaultModelConnectionId !== "string") throw new DataError("模型连接设置无效");
   if (settings.modelConnections.some((item) => !isRecord(item) || typeof item.id !== "string" || !item.id || typeof item.name !== "string" || !item.name.trim() || !["chatgpt_subscription", "openai_compatible"].includes(String(item.kind)) || "apiKey" in item || "accessToken" in item)) throw new DataError("模型连接只能保存非敏感配置，密钥必须留在本机凭据文件");
   if (settings.defaultModelConnectionId && !settings.modelConnections.some((item) => item.id === settings.defaultModelConnectionId)) throw new DataError("默认模型连接不存在");
+  if (!Array.isArray(settings.stageCategories) || settings.stageCategories.some((item) => !isRecord(item) || typeof item.id !== "string" || !item.id || typeof item.name !== "string" || !item.name.trim() || typeof item.icon !== "string" || typeof item.color !== "string" || !Number.isInteger(item.sortOrder)) || new Set(settings.stageCategories.map((item) => item.id)).size !== settings.stageCategories.length) throw new DataError("三阶段类别配置无效");
+  if (!Array.isArray(settings.planningHorizons) || settings.planningHorizons.some((item) => !isRecord(item) || typeof item.id !== "string" || !item.id || typeof item.name !== "string" || !item.name.trim() || !Number.isInteger(item.sortOrder) || item.minDays !== undefined && (!Number.isInteger(item.minDays) || item.minDays < 0) || item.maxDays !== undefined && (!Number.isInteger(item.maxDays) || item.maxDays < 0) || item.minDays !== undefined && item.maxDays !== undefined && item.maxDays < item.minDays) || new Set(settings.planningHorizons.map((item) => item.id)).size !== settings.planningHorizons.length) throw new DataError("计划时限配置无效");
 }
 
 export function validateProfile(profile: PersonalProfile): void {
@@ -151,5 +210,15 @@ export function isReferenced(db: Database, collection: CollectionKey, id: string
   if (collection === "papers" && db.research.some((research) => research.paperIds.includes(id))) return true;
   if (collection === "projects" && db.competitions.some((competition) => competition.projectIds.includes(id))) return true;
   if (type && db.goals.some((goal) => goal.linkedItems.some((ref) => ref.type === type && ref.id === id))) return true;
+  if (collection === "pendingItems" && db.activePlans.some((plan) => plan.sourcePendingId === id)) return true;
+  if (collection === "activePlans" && (db.pendingItems.some((item) => item.promotedPlanId === id) || db.tasks.some((task) => task.activePlanId === id) || db.achievements.some((item) => item.sourcePlanId === id) || db.internships.some((item) => item.linkedPlanId === id))) return true;
+  if (collection === "achievements" && db.activePlans.some((plan) => plan.achievementId === id)) return true;
+  if (collection === "internships" && db.achievements.some((item) => item.linkedRefs.some((ref) => ref.type === "internship" && ref.id === id))) return true;
+  if (collection === "attachments" && [
+    ...db.pendingItems.map((item) => item.evidenceRefs),
+    ...db.achievements.map((item) => item.evidenceRefs),
+    ...db.internships.map((item) => item.evidenceRefs),
+    ...db.grades.map((item) => item.evidenceRefs ?? []),
+  ].some((refs) => refs.some((ref) => ref.type === "attachment" && ref.id === id))) return true;
   return false;
 }

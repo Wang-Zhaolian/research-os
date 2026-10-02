@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTheme } from "next-themes";
+import Image from "next/image";
 import { toast } from "sonner";
 import {
   Archive, ArrowDown, ArrowUp, BookOpen, Check,
@@ -9,6 +10,7 @@ import {
   Moon, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Settings, Sun, Target, Trash2,
   Bot, Compass, DatabaseBackup,
   Trophy, X,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,29 +24,29 @@ import { addDays, allDeadlines, calculateGpa, calculateGradePoint, calculateWeig
 import { createEntityDefaults } from "@/lib/entity-defaults";
 import type {
   AIConversation, AIConversationMessage, AIProposalChange, AnyEntity, CollectionKey, Competition, Database, EntityKind, EntityRef, EveningReview,
-  Goal, Grade, LearningCourse, LearningModule, Milestone, MilestoneRef, Paper, PersonalProject,
+  ActivePlan, Achievement, Goal, Grade, LearningCourse, LearningModule, LocalAttachment, Milestone, MilestoneRef, Paper, PendingItem, PersonalProject,
   ParentEntityRef, PersonalProfile, ResearchProject, ReviewSubmission, Settings as AppSettings, Status, Task,
 } from "@/lib/types";
 
-type ViewKey = "onboarding" | "dashboard" | "tonight" | "learning" | "research" | "papers" | "projects" | "competitions" | "goals" | "gpa" | "assistant" | "archive" | "settings";
-type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents">;
-type FieldType = "text" | "textarea" | "date" | "number" | "select" | "list" | "checkbox" | "relation" | "relationMulti" | "relationRefs" | "milestoneRefs" | "modules" | "milestones" | "resources" | "meetings";
+type ViewKey = "onboarding" | "dashboard" | "in_progress" | "pending" | "completed" | "tonight" | "learning" | "research" | "papers" | "projects" | "competitions" | "internships" | "goals" | "gpa" | "assistant" | "archive" | "settings";
+type EditableCollection = Exclude<CollectionKey, "reviews" | "progressEvents" | "attachments">;
+type FieldType = "text" | "textarea" | "date" | "number" | "select" | "list" | "checkbox" | "relation" | "relationMulti" | "relationRefs" | "milestoneRefs" | "modules" | "milestones" | "resources" | "meetings" | "category" | "horizon";
 type FieldDef = { key: string; label: string; type?: FieldType; wide?: boolean; options?: [string, string][]; help?: string; relationType?: EntityKind };
 
-const nav: { key: ViewKey; label: string; icon: typeof CircleGauge; section?: string }[] = [
-  { key: "onboarding", label: "初始化", icon: Compass, section: "开始" },
-  { key: "dashboard", label: "总览", icon: CircleGauge, section: "现在" },
+const stageNav: { key: ViewKey; label: string; icon: typeof CircleGauge; tone: string }[] = [
+  { key: "in_progress", label: "进行中", icon: CircleGauge, tone: "blue" },
+  { key: "pending", label: "待开始", icon: Compass, tone: "amber" },
+  { key: "completed", label: "已完成", icon: Check, tone: "green" },
+];
+const utilityNav: { key: ViewKey; label: string; icon: typeof CircleGauge }[] = [
   { key: "tonight", label: "今晚更新", icon: ClipboardCheck },
-  { key: "learning", label: "自主学习", icon: BookOpen, section: "工作区" },
-  { key: "research", label: "科研", icon: FlaskConical },
-  { key: "papers", label: "论文", icon: LibraryBig },
-  { key: "projects", label: "项目", icon: FolderGit2 },
-  { key: "competitions", label: "竞赛", icon: Trophy },
-  { key: "goals", label: "长期目标", icon: Target },
+  { key: "assistant", label: "AI 助手", icon: Bot },
+];
+const libraryNav: { key: ViewKey; label: string; icon: typeof CircleGauge }[] = [
+  { key: "learning", label: "自主学习", icon: BookOpen }, { key: "research", label: "科研", icon: FlaskConical },
+  { key: "papers", label: "论文", icon: LibraryBig }, { key: "projects", label: "项目", icon: FolderGit2 },
+  { key: "competitions", label: "竞赛", icon: Trophy }, { key: "internships", label: "实习", icon: FolderGit2 }, { key: "goals", label: "长期目标", icon: Target },
   { key: "gpa", label: "成绩 / GPA", icon: GraduationCap },
-  { key: "assistant", label: "AI 助手", icon: Bot, section: "系统" },
-  { key: "archive", label: "归档", icon: Archive },
-  { key: "settings", label: "设置", icon: Settings },
 ];
 
 const statusOptions: [string, string][] = [
@@ -80,6 +82,7 @@ const fields: Record<EditableCollection, FieldDef[]> = {
     { key: "completedContent", label: "已完成内容", type: "textarea", wide: true },
     { key: "currentContent", label: "当前内容", type: "textarea", wide: true },
     { key: "nextAction", label: "下一步", type: "textarea", wide: true },
+    { key: "syllabusComplete", label: "已核对完整课程/章节清单", type: "checkbox", wide: true, help: "只有你确认模块清单没有遗漏，且所有模块与知识点都完成后，AI 才能建议总结为完成整门课程。" },
     { key: "modules", label: "课程模块与 Topics", type: "modules", wide: true },
     { key: "notes", label: "备注", type: "textarea", wide: true },
     { key: "tags", label: "标签", type: "list", wide: true },
@@ -159,11 +162,40 @@ const fields: Record<EditableCollection, FieldDef[]> = {
     { key: "courseType", label: "课程类型" }, { key: "isCore", label: "核心课程", type: "checkbox" },
     { key: "tags", label: "标签", type: "list", wide: true },
   ],
+  pendingItems: [
+    { key: "title", label: "想做的事", wide: true }, { key: "categoryId", label: "类别", type: "category" },
+    { key: "targetDate", label: "希望开始/完成日期", type: "date" }, { key: "description", label: "为什么想做", type: "textarea", wide: true },
+    { key: "desiredOutcome", label: "预期成果 / 启动后的下一步", type: "textarea", wide: true },
+    { key: "linkedRefs", label: "关联专业记录", type: "relationRefs", wide: true }, { key: "tags", label: "标签", type: "list", wide: true },
+  ],
+  activePlans: [
+    { key: "title", label: "计划名称", wide: true }, { key: "categoryId", label: "类别", type: "category" }, { key: "horizonId", label: "计划时限", type: "horizon" },
+    { key: "status", label: "状态", type: "select", options: statusOptions.filter(([value]) => value !== "completed") },
+    { key: "startDate", label: "开始日期", type: "date" }, { key: "targetDate", label: "目标日期", type: "date" },
+    { key: "description", label: "计划说明", type: "textarea", wide: true }, { key: "nextAction", label: "下一步行动", type: "textarea", wide: true },
+    { key: "linkedRefs", label: "关联专业记录", type: "relationRefs", wide: true }, { key: "taskIds", label: "关联任务", type: "relationMulti", relationType: "task", wide: true },
+    { key: "tags", label: "标签", type: "list", wide: true },
+  ],
+  achievements: [
+    { key: "title", label: "成果 / 已有基础", wide: true }, { key: "categoryId", label: "类别", type: "category" },
+    { key: "achievedDate", label: "完成日期", type: "date" }, { key: "summary", label: "成果说明", type: "textarea", wide: true },
+    { key: "linkedRefs", label: "关联专业记录", type: "relationRefs", wide: true }, { key: "tags", label: "标签", type: "list", wide: true },
+  ],
+  internships: [
+    { key: "organization", label: "公司 / 机构", wide: true }, { key: "role", label: "岗位" }, { key: "location", label: "地点" },
+    { key: "startDate", label: "开始日期", type: "date" }, { key: "endDate", label: "结束日期", type: "date" },
+    { key: "status", label: "状态", type: "select", options: statusOptions }, { key: "mentor", label: "导师 / 联系人" },
+    { key: "description", label: "实习说明", type: "textarea", wide: true }, { key: "responsibilities", label: "职责", type: "textarea", wide: true },
+    { key: "outcomes", label: "成果与收获", type: "textarea", wide: true }, { key: "tags", label: "标签", type: "list", wide: true },
+  ],
 };
 
 const pageMeta: Record<ViewKey, [string, string, string]> = {
   onboarding: ["个人初始化", "先把真实情况录进来", "从个人档案到当前进行中的事项；AI 只整理为待确认草稿。"],
   dashboard: ["总览", "今天最值得推进什么", "把注意力放在少数真正重要的下一步。"],
+  in_progress: ["现在", "进行中", "把眼前的计划、下一步和近期节点放在一起。"],
+  pending: ["以后", "待开始", "先保存有价值的想法，准备好时再启动。"],
+  completed: ["积累", "已完成", "回看已经建立的基础、经历和有来源的成果。"],
   tonight: ["晚间复盘", "今晚更新", "用 3–5 分钟让计划重新贴合现实。"],
   learning: ["学习", "自主学习", "按课程、模块与知识点管理知识进展。"],
   research: ["研究", "科研", "从研究问题到投稿，保留每一步上下文。"],
@@ -171,6 +203,7 @@ const pageMeta: Record<ViewKey, [string, string, string]> = {
   projects: ["项目", "非科研项目", "只管理个人开发与参考项目；科研代码留在科研模块。"],
   competitions: ["竞赛", "竞赛", "只参加值得投入的竞赛，并跟踪准备与结果。"],
   goals: ["发展方向", "长期目标", "用里程碑和下一步行动连接多年目标与本周工作。"],
+  internships: ["经历档案", "实习经历", "记录岗位、职责、时间与收获；成果卡可引用这条原始事实。"],
   gpa: ["学业记录", "成绩 / GPA", "按可配置规则计算学期与累计 GPA。"],
   assistant: ["模型助手", "AI 助手", "本地检索你的活动数据；每项修改都先审阅再确认保存。"],
   archive: ["归档", "归档", "从当前工作区移出的内容仍可恢复。"],
@@ -178,16 +211,16 @@ const pageMeta: Record<ViewKey, [string, string, string]> = {
 };
 
 const collectionView: Partial<Record<EditableCollection, ViewKey>> = {
-  tasks: "dashboard", learning: "learning", research: "research", papers: "papers", projects: "projects",
-  competitions: "competitions", goals: "goals", grades: "gpa",
+  tasks: "in_progress", learning: "learning", research: "research", papers: "papers", projects: "projects",
+  competitions: "competitions", goals: "goals", grades: "gpa", pendingItems: "pending", activePlans: "in_progress", achievements: "completed", internships: "internships",
 };
 const viewCollection: Partial<Record<ViewKey, EditableCollection>> = {
-  learning: "learning", research: "research", papers: "papers", projects: "projects", competitions: "competitions", goals: "goals",
+  learning: "learning", research: "research", papers: "papers", projects: "projects", competitions: "competitions", internships: "internships", goals: "goals",
 };
 
 const today = (timeZone = "Asia/Shanghai") => dateInZone(new Date(), timeZone);
 let activeEpoch = "";
-const emptyDatabase: Database = { tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: { schemaVersion: 3, demoData: false, timeZone: "Asia/Shanghai", stalledDays: 7, dataEpoch: "loading", dataRevision: 0, gpaPresetId: "swufe-2024", gpaConfigured: false, modelConnections: [], defaultModelConnectionId: "", gpa: { scale: 4, rules: [] } } };
+const emptyDatabase: Database = { tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], pendingItems: [], activePlans: [], achievements: [], internships: [], attachments: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: { schemaVersion: 4, demoData: false, timeZone: "Asia/Shanghai", stalledDays: 7, dataEpoch: "loading", dataRevision: 0, gpaPresetId: "swufe-2024", gpaConfigured: false, modelConnections: [], defaultModelConnectionId: "", stageCategories: [], planningHorizons: [], gpa: { scale: 4, rules: [] } } };
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
@@ -200,9 +233,19 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return value;
 }
 
+type AttachmentPreview = { attachment: LocalAttachment; duplicate?: boolean; previewText: string; textLength: number; pageCount?: number; isImage: boolean; available?: boolean };
+async function uploadLocalFiles(files: File[], epoch: string, sourceKind: "upload" | "pasted_text" = "upload"): Promise<AttachmentPreview[]> {
+  const body = new FormData(); for (const file of files) body.append("files", file);
+  body.set("sourceKind", sourceKind);
+  const response = await fetch("/api/attachments", { method: "POST", headers: { "x-research-os-epoch": epoch }, body, cache: "no-store" });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || `附件保存失败：${response.status}`);
+  return (await response.json() as { attachments: AttachmentPreview[] }).attachments;
+}
+
 function entityTitle(collection: EditableCollection, entity: AnyEntity) {
-  if (collection === "tasks" || collection === "papers" || collection === "goals") return (entity as Task | Paper | Goal).title;
+  if (["tasks", "papers", "goals", "pendingItems", "activePlans", "achievements"].includes(collection)) return (entity as Task | Paper | Goal | Database["pendingItems"][number] | Database["activePlans"][number] | Database["achievements"][number]).title;
   if (collection === "grades") return (entity as Grade).course;
+  if (collection === "internships") return `${(entity as Database["internships"][number]).organization} · ${(entity as Database["internships"][number]).role}`;
   return (entity as LearningCourse | ResearchProject | PersonalProject | Competition).name;
 }
 
@@ -217,7 +260,7 @@ function defaultEntity(collection: EditableCollection): Record<string, unknown> 
 export function ResearchOS() {
   const [db, setDb] = useState<Database>(emptyDatabase);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<ViewKey>("onboarding");
+  const [view, setView] = useState<ViewKey>("in_progress");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{ collection: EditableCollection; entity?: AnyEntity } | null>(null);
@@ -225,13 +268,13 @@ export function ResearchOS() {
   const { theme, setTheme } = useTheme();
 
   const refresh = useCallback(async () => {
-    try { const next = await api<Database>("/api/data"); setDb(next); setView(next.profile.onboardingComplete ? "dashboard" : "onboarding"); }
+    try { const next = await api<Database>("/api/data"); setDb(next); }
     catch (error) { toast.error(`读取数据失败：${(error as Error).message}`); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => {
     let active = true;
-    void api<Database>("/api/data").then((data) => { if (active) { setDb(data); setView(data.profile.onboardingComplete ? "dashboard" : "onboarding"); setLoading(false); } }).catch((error) => { if (active) { toast.error(`读取数据失败：${(error as Error).message}`); setLoading(false); } });
+    void api<Database>("/api/data").then((data) => { if (active) { setDb(data); setView(data.profile.onboardingComplete ? "in_progress" : "onboarding"); setLoading(false); } }).catch((error) => { if (active) { toast.error(`读取数据失败：${(error as Error).message}`); setLoading(false); } });
     return () => { active = false; };
   }, []);
   useEffect(() => {
@@ -261,6 +304,29 @@ export function ResearchOS() {
     else await api("/api/entities", { method: "PUT", body: JSON.stringify({ collection: "tasks", entity: { id: task.id, ...patch } }) });
     await refresh();
   };
+  const promotePending = async (item: Database["pendingItems"][number], horizonId: string) => {
+    await api("/api/portfolio/promote", { method: "POST", body: JSON.stringify({ id: item.id, expectedRevision: db.settings.dataRevision, horizonId }) });
+    await refresh(); toast.success("已启动，计划已加入进行中");
+  };
+  const completePlan = async (plan: Database["activePlans"][number]) => {
+    await api("/api/portfolio/complete", { method: "POST", body: JSON.stringify({ id: plan.id, expectedRevision: db.settings.dataRevision }) });
+    await refresh(); toast.success("计划已结束，成果卡已建立");
+  };
+  const savePriorities = async (taskIds: string[]) => {
+    try { await api("/api/priorities", { method: "PUT", body: JSON.stringify({ taskIds }) }); await refresh(); }
+    catch (error) { toast.error(`重点调整失败：${(error as Error).message}`); }
+  };
+  const togglePriority = async (task: Task) => {
+    const current = topPriorities(db.tasks).map((item) => item.id);
+    if (current.includes(task.id)) await savePriorities(current.filter((id) => id !== task.id));
+    else if (current.length < 5) await savePriorities([...current, task.id]);
+    else toast.error("当前已有 5 项重点，请先移除一项后再添加");
+  };
+  const reorderPriority = async (taskId: string, direction: -1 | 1) => {
+    const ids = topPriorities(db.tasks).map((item) => item.id); const index = ids.indexOf(taskId); const next = index + direction;
+    if (index < 0 || next < 0 || next >= ids.length) return;
+    [ids[index], ids[next]] = [ids[next], ids[index]]; await savePriorities(ids);
+  };
 
   if (loading) return <div className="loading"><div><div className="spinner" /><p>正在打开 Research OS…</p></div></div>;
 
@@ -270,7 +336,15 @@ export function ResearchOS() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand"><span className="brand-mark">R</span><span><strong>Research OS</strong><small>个人科研与学习控制台</small></span></div>
         <nav className="nav" aria-label="主导航">
-          {nav.map((item) => <div key={item.key}>{item.section && <div className="nav-label">{item.section}</div>}<button className={`nav-button ${view === item.key ? "active" : ""}`} onClick={() => go(item.key)}><item.icon />{item.label}</button></div>)}
+          <div className="nav-label">成长档案</div>
+          {stageNav.map((item) => <button key={item.key} className={`nav-button stage-nav ${item.tone} ${view === item.key ? "active" : ""}`} onClick={() => go(item.key)}><item.icon />{item.label}<span>{item.key === "in_progress" ? db.activePlans.filter((plan) => !plan.archived && plan.status !== "completed").length : item.key === "pending" ? db.pendingItems.filter((pending) => !pending.archived && pending.status === "open").length : db.achievements.filter((achievement) => !achievement.archived).length}</span></button>)}
+          <div className="nav-label">每日使用</div>
+          {utilityNav.map((item) => <button key={item.key} className={`nav-button ${view === item.key ? "active" : ""}`} onClick={() => go(item.key)}><item.icon />{item.label}</button>)}
+          <details className="nav-library" open={libraryNav.some((item) => item.key === view)}><summary>资料库</summary>{libraryNav.map((item) => <button key={item.key} className={`nav-button ${view === item.key ? "active" : ""}`} onClick={() => go(item.key)}><item.icon />{item.label}</button>)}</details>
+          <div className="nav-label">系统</div>
+          <button className={`nav-button ${view === "archive" ? "active" : ""}`} onClick={() => go("archive")}><Archive />归档</button>
+          <button className={`nav-button ${view === "onboarding" ? "active" : ""}`} onClick={() => go("onboarding")}><Compass />个人资料与导入</button>
+          <button className={`nav-button ${view === "settings" ? "active" : ""}`} onClick={() => go("settings")}><Settings />设置</button>
         </nav>
         <div className="sidebar-footer">本地优先 · JSON 数据保存在本机，可用私人 Git 同步</div>
       </aside>
@@ -282,9 +356,9 @@ export function ResearchOS() {
             <Search className="search-icon" />
             <input id="global-search" className="search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索科研、论文、课程、任务…" />
             <span className="search-hint">Ctrl K</span>
-            {query && <div className="search-results">{results.length ? results.map((result) => {
-              const collection = result.collection as EditableCollection;
-              return <button key={`${collection}-${result.entity.id}`} className="search-result" onClick={() => { go(collectionView[collection] ?? "dashboard"); setEditor({ collection, entity: result.entity }); }}><span>{result.title}</span><small>{collectionLabel(collection)}</small></button>;
+          {query && <div className="search-results">{results.length ? results.map((result) => {
+            const collection = result.collection as EditableCollection;
+              return <button key={`${collection}-${result.entity.id}`} className="search-result" onClick={() => { go(collectionView[collection] ?? (collection === "pendingItems" ? "pending" : collection === "achievements" ? "completed" : "in_progress")); setEditor({ collection, entity: result.entity }); }}><span>{result.title}</span><small>{collectionLabel(collection)}</small></button>;
             }) : <div className="empty">没有找到匹配内容</div>}</div>}
           </div>
           <div className="topbar-actions">
@@ -293,9 +367,10 @@ export function ResearchOS() {
           </div>
         </header>
         <main className="main">
-          <div className="page-head"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{viewCollection[view] && <Button onClick={() => setEditor({ collection: viewCollection[view]! })}><Plus />新增</Button>}{view === "gpa" && <Button onClick={() => setEditor({ collection: "grades" })}><Plus />录入成绩</Button>}</div>
+          <div className="page-head"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{view === "in_progress" && <Button onClick={() => setEditor({ collection: "activePlans" })}><Plus />新增计划</Button>}{view === "pending" && <Button onClick={() => setEditor({ collection: "pendingItems" })}><Plus />记录想法</Button>}{view === "completed" && <Button onClick={() => setEditor({ collection: "achievements" })}><Plus />记录成果</Button>}{viewCollection[view] && <Button onClick={() => setEditor({ collection: viewCollection[view]! })}><Plus />新增</Button>}{view === "gpa" && <Button onClick={() => setEditor({ collection: "grades" })}><Plus />录入成绩</Button>}</div>
           {view === "onboarding" && <OnboardingPage db={db} refresh={refresh} go={go} addEntity={(collection, entity) => save(collection, entity)} />}
           {view === "dashboard" && <Dashboard db={db} edit={(collection, entity) => setEditor({ collection, entity })} updateTask={updateTask} addTask={() => setEditor({ collection: "tasks" })} progressTask={setProgressTask} go={go} />}
+          {(view === "in_progress" || view === "pending" || view === "completed") && <PortfolioPage stage={view} db={db} edit={(collection, entity) => setEditor({ collection, entity })} archive={(collection, id) => void archiveEntity(collection, id)} promote={(item, horizon) => void promotePending(item, horizon)} complete={(plan) => void completePlan(plan)} add={(collection) => setEditor({ collection })} togglePriority={togglePriority} reorderPriority={reorderPriority} />}
           {view === "tonight" && <TonightReview db={db} refresh={refresh} go={go} />}
           {viewCollection[view] && <EntityPage collection={viewCollection[view]!} db={db} edit={(entity) => setEditor({ collection: viewCollection[view]!, entity })} archive={(id) => archiveEntity(viewCollection[view]!, id)} />}
           {view === "gpa" && <GpaPage db={db} edit={(entity) => setEditor({ collection: "grades", entity })} archive={(id) => archiveEntity("grades", id)} />}
@@ -313,13 +388,60 @@ export function ResearchOS() {
 function PageEmpty({ children }: { children: React.ReactNode }) { return <div className="empty"><MoreHorizontal />{children}</div>; }
 function StatusBadge({ status }: { status: string }) { return <span className={`badge ${status}`}>{statusLabels[status] ?? status}</span>; }
 
+function PortfolioPage({ stage, db, edit, archive, promote, complete, add, togglePriority, reorderPriority }: {
+  stage: "in_progress" | "pending" | "completed"; db: Database;
+  edit: (collection: EditableCollection, entity: AnyEntity) => void;
+  archive: (collection: EditableCollection, id: string) => void;
+  promote: (item: PendingItem, horizon: string) => void;
+  complete: (plan: ActivePlan) => void;
+  add: (collection: EditableCollection) => void;
+  togglePriority: (task: Task) => void;
+  reorderPriority: (taskId: string, direction: -1 | 1) => void;
+}) {
+  const [horizons, setHorizons] = useState<Record<string, string>>({});
+  const activePlans = db.activePlans.filter((item) => !item.archived && item.status !== "completed");
+  const pending = db.pendingItems.filter((item) => !item.archived && item.status === "open");
+  const achievements = db.achievements.filter((item) => !item.archived);
+  const todayDate = today(db.settings.timeZone);
+  const recommended = priorityCandidates(db, todayDate);
+  const priorities = topPriorities(db.tasks);
+  const categoryGroups = <T extends { categoryId: string }>(items: T[]) => [...db.settings.stageCategories].filter((category) => !category.archived).sort((a, b) => a.sortOrder - b.sortOrder).map((category) => ({ category, items: items.filter((item) => item.categoryId === category.id) })).filter((group) => group.items.length > 0);
+  const factRecords: { collection: EditableCollection; entity: AnyEntity; title: string; detail: string }[] = [];
+  if (stage === "completed") {
+    for (const task of db.tasks.filter((item) => !item.archived && item.status === "completed")) factRecords.push({ collection: "tasks", entity: task, title: task.title, detail: `任务完成 · ${task.completedAt?.slice(0, 10) ?? task.updatedAt.slice(0, 10)}` });
+    for (const course of db.learning.filter((item) => !item.archived && item.status === "completed")) factRecords.push({ collection: "learning", entity: course, title: course.name, detail: `课程记录已标记完成 · ${course.completedContent || "仅按原记录展示，不推断掌握程度"}` });
+    for (const project of db.research.filter((item) => !item.archived && item.status === "completed")) factRecords.push({ collection: "research", entity: project, title: project.name, detail: `科研记录已结束 · ${project.stage || project.results || "保留原科研记录作为事实依据"}` });
+    for (const project of db.projects.filter((item) => !item.archived && item.status === "completed")) factRecords.push({ collection: "projects", entity: project, title: project.name, detail: `项目记录已完成 · ${project.learnings || project.description || "保留原项目记录"}` });
+    for (const item of db.competitions.filter((entry) => !entry.archived && entry.status === "completed")) factRecords.push({ collection: "competitions", entity: item, title: item.name, detail: `竞赛记录已结束 · ${item.award || item.finalResult || "未记录获奖结果"}` });
+    for (const item of db.internships.filter((entry) => !entry.archived && entry.status === "completed")) factRecords.push({ collection: "internships", entity: item, title: `${item.organization} · ${item.role}`, detail: `实习记录已结束 · ${item.outcomes || "尚未补充收获"}` });
+    for (const grade of db.grades.filter((item) => !item.archived && (item.gradingType === "exempt" || item.gradingType === "pass_fail" && Boolean(item.result) || item.gradingType === "percentage" && item.score !== null && item.score !== undefined))) factRecords.push({ collection: "grades", entity: grade, title: grade.course, detail: `${grade.semester} · ${grade.credits} 学分 · ${grade.gradingType === "percentage" ? `${grade.score} 分` : grade.gradingType === "exempt" ? "免修" : grade.result === "pass" ? "合格" : "不合格"}` });
+  }
+  const orderedFacts = [...factRecords].sort((a, b) => {
+    const date = (entity: AnyEntity) => { const item = entity as AnyEntity & { completedAt?: string; achievedDate?: string; date?: string; semester?: string }; return item.completedAt ?? item.achievedDate ?? item.date ?? item.semester ?? item.updatedAt; };
+    return date(b.entity).localeCompare(date(a.entity));
+  });
+  if (stage === "in_progress") return <div className="portfolio-page">
+    <section className="portfolio-highlight"><div><span className="portfolio-kicker">FOCUS · 本周重点</span><h2>把注意力放在少数关键推进上</h2><p>这里优先呈现你亲自置顶的任务。系统建议仅供参考，不会自动替你改优先级。</p></div><Button variant="outline" onClick={() => add("tasks")}><Plus />新增任务</Button></section>
+    <div className="portfolio-columns"><section className="panel"><div className="panel-head"><div><h2 className="panel-title">当前重点</h2><span className="panel-meta">{priorities.length}/5 · 手动确认排序</span></div></div><div className="panel-body">{priorities.length ? priorities.map((task, index) => <article className="priority-row" key={task.id}><span className="rank">{String(index + 1).padStart(2, "0")}</span><div><div className="row-title">{task.title}</div><div className="row-subtitle">下一步：{effectiveNextAction(db, task) || <span className="warning-text">尚未填写下一步行动</span>}</div></div><div className="flex items-center gap-1"><Button variant="ghost" size="icon-sm" aria-label="重点上移" disabled={index === 0} onClick={() => void reorderPriority(task.id, -1)}><ArrowUp /></Button><Button variant="ghost" size="icon-sm" aria-label="重点下移" disabled={index === priorities.length - 1} onClick={() => void reorderPriority(task.id, 1)}><ArrowDown /></Button><Button variant="ghost" size="sm" onClick={() => edit("tasks", task)}><Pencil />编辑</Button><Button variant="ghost" size="sm" onClick={() => void togglePriority(task)}>移出重点</Button></div></article>) : <PageEmpty>还没有置顶任务。可从下面建议中挑选本周最重要的 3–5 件事。</PageEmpty>}</div></section>
+      <section className="panel"><div className="panel-head"><div><h2 className="panel-title">优先级建议</h2><span className="panel-meta">临期、手工优先级、目标关联和停滞综合排序</span></div></div><div className="panel-body">{recommended.length ? recommended.map(({ task, reasons }) => <div className="recommend-row" key={task.id}><div><strong>{task.title}</strong><div className="row-subtitle">{reasons.length ? reasons.join(" · ") : "可考虑安排推进"} · {effectiveNextAction(db, task) || "需补下一步行动"}</div></div><div className="flex gap-2"><Button variant="ghost" size="sm" onClick={() => edit("tasks", task)}>查看</Button><Button variant="outline" size="sm" disabled={task.planningState !== "week" || !task.primaryParent || priorities.length >= 5} onClick={() => void togglePriority(task)}>加入重点</Button></div></div>) : <PageEmpty>暂时没有未置顶的合适任务。</PageEmpty>}</div></section></div>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">进行中的计划</h2><span className="panel-meta">按类别整理；时限是建议，实际起止日期可以自由设置</span></div></div><div className="panel-body stage-groups">{categoryGroups(activePlans).map(({ category, items }) => <div className="stage-category-group" key={category.id}><div className="stage-category-heading" style={{ borderColor: category.color }}><span className="stage-category-dot" style={{ backgroundColor: category.color }} /><h3>{category.name}</h3><small>{items.length} 项</small></div><div className="entity-grid">{items.map((plan) => { const horizon = db.settings.planningHorizons.find((item) => item.id === plan.horizonId); const stalled = plan.updatedAt.slice(0, 10) <= addDays(todayDate, -db.settings.stalledDays); return <article className="portfolio-card" key={plan.id}><div className="card-top"><h3>{plan.title}</h3><StatusBadge status={plan.status} /></div><div className="portfolio-tags"><span>{horizon?.name ?? "未分类时限"}</span>{stalled && <span className="warning-text">可能停滞</span>}</div><p>{plan.description || "尚未补充计划说明。"}</p><dl className="meta-grid"><span><dt>下一步</dt><dd>{plan.nextAction || <span className="warning-text">未填写</span>}</dd></span><span><dt>目标日期</dt><dd>{plan.targetDate || "未设置"}</dd></span><span><dt>关联任务</dt><dd>{plan.taskIds.length} 项</dd></span></dl><div className="card-actions"><Button variant="outline" size="sm" onClick={() => edit("activePlans", plan)}><Pencil />编辑</Button><Button size="sm" onClick={() => complete(plan)}>完成并建立成果卡</Button></div></article>; })}</div></div>)}{!activePlans.length && <PageEmpty>还没有进行中的计划。可以新建计划，或从“待开始”启动一项。</PageEmpty>}</div></section>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">本周任务与截止日期</h2><span className="panel-meta">周计划从周一开始；过周未完成事项需要重新安排</span></div><Button variant="outline" size="sm" onClick={() => add("tasks")}><Plus />任务</Button></div><div className="panel-body"><div className="entity-grid">{db.tasks.filter((task) => !task.archived && task.status !== "completed" && taskPlanBucket(task, todayDate) === "this_week").map((task) => <article className="portfolio-card" key={task.id}><div className="card-top"><h3>{task.title}</h3><StatusBadge status={task.status} /></div><p>{effectiveNextAction(db, task) || <span className="warning-text">请补充下一步行动</span>}</p><div className="portfolio-tags"><span>{task.category}</span><span>{task.priority === "high" ? "高优先级" : task.priority === "medium" ? "中优先级" : "低优先级"}</span>{task.dueDate && <span>截止 {task.dueDate}</span>}</div><div className="card-actions"><Button variant="ghost" size="sm" onClick={() => edit("tasks", task)}><Pencil />编辑</Button><Button variant="outline" size="sm" disabled={priorities.some((item) => item.id === task.id) || priorities.length >= 5 || !task.primaryParent} onClick={() => void togglePriority(task)}>{priorities.some((item) => item.id === task.id) ? "已是重点" : "加入重点"}</Button></div></article>)}</div></div></section>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">截止日期</h2><span className="panel-meta">跨模块统一查看，优先处理逾期和未来一周</span></div></div><div className="panel-body"><DeadlineGroup title="已逾期" items={allDeadlines(db).filter((item) => item.date < todayDate)} warning /><DeadlineGroup title="未来 7 天" items={allDeadlines(db).filter((item) => item.date >= todayDate && item.date <= addDays(todayDate, 7))} /><DeadlineGroup title="未来 8–30 天" items={allDeadlines(db).filter((item) => item.date > addDays(todayDate, 7) && item.date <= addDays(todayDate, 30))} /></div></section>
+  </div>;
+  if (stage === "pending") return <section className="portfolio-board"><div className="portfolio-intro"><div><span className="portfolio-kicker">LATER · IDEAS TO EXPLORE</span><h2>先收好想法，准备好时再开始</h2><p>启动时保留原待开始卡，并创建互相关联的进行中计划。</p></div><Button onClick={() => add("pendingItems")}><Plus />记录想法</Button></div><div className="stage-groups">{categoryGroups(pending).map(({ category, items }) => <section className="stage-category-group" key={category.id}><div className="stage-category-heading" style={{ borderColor: category.color }}><span className="stage-category-dot" style={{ backgroundColor: category.color }} /><h3>{category.name}</h3><small>{items.length} 项</small></div><div className="entity-grid">{items.map((item) => <article className="portfolio-card" key={item.id}><div className="card-top"><h3>{item.title}</h3></div><p>{item.description || item.desiredOutcome || "还没有补充说明。"}</p><div className="portfolio-tags">{item.targetDate && <span>希望日期 {item.targetDate}</span>}{item.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><label className="form-label" htmlFor={`horizon-${item.id}`}>启动时限建议</label><select id={`horizon-${item.id}`} className="field-select" value={horizons[item.id] ?? db.settings.planningHorizons.find((entry) => entry.id === "short")?.id ?? ""} onChange={(event) => setHorizons((current) => ({ ...current, [item.id]: event.target.value }))}>{db.settings.planningHorizons.filter((entry) => !entry.archived).sort((a, b) => a.sortOrder - b.sortOrder).map((entry) => <option key={entry.id} value={entry.id}>{entry.name}{entry.minDays || entry.maxDays ? `（${entry.minDays ?? "不限"}–${entry.maxDays ?? "不限"} 天建议）` : ""}</option>)}</select><div className="card-actions"><Button variant="outline" size="sm" onClick={() => edit("pendingItems", item)}><Pencil />编辑</Button><Button size="sm" onClick={() => promote(item, horizons[item.id] ?? db.settings.planningHorizons.find((entry) => entry.id === "short")?.id ?? "")}>开始计划</Button><Button variant="ghost" size="sm" onClick={() => archive("pendingItems", item.id)}><Archive />归档</Button></div></article>)}</div></section>)}{!pending.length && <PageEmpty>待开始列表还是空的。之后想到值得做的事，可以先放到这里。</PageEmpty>}</div></section>;
+  return <div className="portfolio-board"><section className="portfolio-intro completed-intro"><div><span className="portfolio-kicker">COMPLETED · EVIDENCE & ACHIEVEMENTS</span><h2>已经积累的基础与经历</h2><p>成果卡是总结；事实记录保留在原模块并在这里汇总展示。完成章节不等于掌握整门课程。</p></div><Button onClick={() => add("achievements")}><Plus />记录成果卡</Button></section>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">成果卡</h2><span className="panel-meta">按类别整理；手工记录或确认 AI 建议后建立</span></div></div><div className="panel-body stage-groups">{categoryGroups(achievements).map(({ category, items }) => <div className="stage-category-group" key={category.id}><div className="stage-category-heading" style={{ borderColor: category.color }}><span className="stage-category-dot" style={{ backgroundColor: category.color }} /><h3>{category.name}</h3><small>{items.length} 项</small></div><div className="entity-grid">{items.map((item) => <article className="portfolio-card achievement-card" key={item.id}><div className="card-top"><h3>{item.title}</h3></div><p>{item.summary || "尚未添加成果说明。"}</p><div className="portfolio-tags">{item.achievedDate && <span>{item.achievedDate}</span>}<span>{item.verification === "source_supported" ? "有来源依据" : "个人记录"}</span></div><div className="card-actions"><Button variant="ghost" size="sm" onClick={() => edit("achievements", item)}><Pencil />编辑</Button></div></article>)}</div></div>)}{!achievements.length && <PageEmpty>还没有单独建立成果卡；下方事实记录会保留在各自资料模块。</PageEmpty>}</div></section>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">可追溯的事实记录</h2><span className="panel-meta">按最近完成或记录时间排序；来自任务、课程、科研、竞赛、实习与成绩</span></div></div><div className="panel-body">{orderedFacts.length ? <div className="fact-timeline">{orderedFacts.map(({ collection, entity, title, detail }) => <article className="fact-row" key={`${collection}-${entity.id}`}><span className="fact-dot" /><div><strong>{title}</strong><p>{detail}</p><div className="row-subtitle">{collectionLabel(collection)} · 原始记录保留</div></div><Button variant="ghost" size="sm" onClick={() => edit(collection, entity)}>打开记录</Button></article>)}</div> : <PageEmpty>目前还没有标记完成或已有成绩的事实记录。</PageEmpty>}</div></section>
+  </div>;
+}
+
 function OnboardingPage({ db, refresh, go, addEntity }: { db: Database; refresh: () => Promise<void>; go: (view: ViewKey) => void; addEntity: (collection: EditableCollection, entity: Partial<AnyEntity> & { id?: string }) => Promise<void> }) {
   const [profile, setProfile] = useState(() => ({ ...db.profile, university: db.profile.university || "西南财经大学", developmentDirections: db.profile.developmentDirections.length ? db.profile.developmentDirections.join("，") : "机器学习，运筹优化，统计" }));
   const [confirmGpa, setConfirmGpa] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [collection, setCollection] = useState<EditableCollection>("learning");
   const [title, setTitle] = useState(""); const [details, setDetails] = useState(""); const [savingEntity, setSavingEntity] = useState(false);
-  const [situation, setSituation] = useState("");
+  const [situation, setSituation] = useState(""); const [savingImport, setSavingImport] = useState(false);
   const directions = (value: string) => value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
   const submitProfile = async () => {
     setSavingProfile(true);
@@ -327,7 +449,7 @@ function OnboardingPage({ db, refresh, go, addEntity }: { db: Database; refresh:
       const entryYear = String(profile.entryYear ?? "").trim() ? Number(profile.entryYear) : undefined;
       const value: PersonalProfile = { ...profile, entryYear, developmentDirections: directions(profile.developmentDirections), onboardingComplete: true };
       await api<PersonalProfile>("/api/profile", { method: "PUT", body: JSON.stringify({ profile: value, confirmGpaPreset: confirmGpa }) });
-      await refresh(); toast.success("个人档案已保存"); go("dashboard");
+      await refresh(); toast.success("个人档案已保存"); go("in_progress");
     } catch (error) { toast.error(`保存失败：${(error as Error).message}`); }
     finally { setSavingProfile(false); }
   };
@@ -346,29 +468,36 @@ function OnboardingPage({ db, refresh, go, addEntity }: { db: Database; refresh:
     try { await addEntity(collection, entity as Partial<AnyEntity> & { id?: string }); setTitle(""); setDetails(""); }
     finally { setSavingEntity(false); }
   };
-  const askAi = () => {
+  const askAi = async () => {
     if (!situation.trim()) { toast.error("请先描述当前真实情况"); return; }
-    sessionStorage.setItem("research-os-assistant-prefill", `请帮我把以下真实情况整理成课程、科研项目、目标与任务的可审阅草稿。只录入我明确说出的事实，缺失信息请追问，不要猜。\n\n${situation.trim()}`);
-    go("assistant");
+    setSavingImport(true);
+    try {
+      const file = new File([situation.trim()], `个人资料-${today(db.settings.timeZone)}.txt`, { type: "text/plain" });
+      const [uploaded] = await uploadLocalFiles([file], db.settings.dataEpoch, "pasted_text");
+      sessionStorage.setItem("research-os-assistant-prefill", "请帮我把已附加的真实资料整理为三阶段档案、专业记录和计划建议。只录入资料明确支持的事实；缺失信息留空或追问，不要猜测。先给出依据和逐项差异，等待我确认。");
+      sessionStorage.setItem("research-os-assistant-attachment-ids", JSON.stringify([uploaded.attachment.id]));
+      setSituation(""); go("assistant");
+    } catch (error) { toast.error(`资料未导入：${(error as Error).message}`); }
+    finally { setSavingImport(false); }
   };
   return <div className="stack">
     <section className="panel"><div className="panel-head"><div><h2 className="panel-title">① 确认个人档案</h2><span className="panel-meta">页面预填的信息只是待核对内容，只有保存后才进入数据文件。</span></div></div><div className="panel-body stack">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label className="form-label">称呼（可留空）</label><input className="field-input" value={profile.displayName} onChange={(event) => setProfile({ ...profile, displayName: event.target.value })} placeholder="你希望系统怎样称呼你" /></div><div><label className="form-label">学校</label><input className="field-input" value={profile.university} onChange={(event) => setProfile({ ...profile, university: event.target.value })} /></div><div><label className="form-label">专业</label><input className="field-input" value={profile.major} onChange={(event) => setProfile({ ...profile, major: event.target.value })} placeholder="请按你的实际专业填写" /></div><div><label className="form-label">入学年份</label><input className="field-input" type="number" min={2000} max={2200} value={profile.entryYear ?? ""} onChange={(event) => setProfile({ ...profile, entryYear: event.target.value ? Number(event.target.value) : undefined })} placeholder="例如 2024" /></div><div><label className="form-label">当前学期</label><input className="field-input" value={profile.currentSemester} onChange={(event) => setProfile({ ...profile, currentSemester: event.target.value })} placeholder="例如 2026 秋季学期" /></div><div><label className="form-label">发展方向（按优先级排序）</label><input className="field-input" value={profile.developmentDirections} onChange={(event) => setProfile({ ...profile, developmentDirections: event.target.value })} /></div></div>
       <label className="choice"><input type="checkbox" checked={confirmGpa} onChange={(event) => setConfirmGpa(event.target.checked)} disabled={!profile.entryYear || profile.entryYear < 2024} /><span>我确认自己属于 2024 级及以后，并启用“西南财经大学本科 2024 版”GPA 规则</span></label>
-      <div className="flex flex-wrap gap-2"><Button disabled={savingProfile} onClick={() => void submitProfile()}>{savingProfile ? "保存中…" : "确认档案并进入控制台"}</Button><Button variant="outline" onClick={() => go("dashboard")}>暂时跳过</Button></div>
+      <div className="flex flex-wrap gap-2"><Button disabled={savingProfile} onClick={() => void submitProfile()}>{savingProfile ? "保存中…" : "确认档案并进入控制台"}</Button><Button variant="outline" onClick={() => go("in_progress")}>暂时跳过</Button></div>
     </div></section>
     <section className="panel"><div className="panel-head"><div><h2 className="panel-title">② 录入正在进行的事项</h2><span className="panel-meta">空白工作区不会自动补入示例。任务先进入收件箱，之后再关联和安排周计划。</span></div></div><div className="panel-body stack">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3"><select className="field-select" value={collection} onChange={(event) => setCollection(event.target.value as EditableCollection)}>{(["learning", "research", "papers", "projects", "competitions", "goals", "tasks"] as EditableCollection[]).map((item) => <option key={item} value={item}>{collectionLabel(item)}</option>)}</select><input className="field-input md:col-span-2" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="名称或标题" /></div>
       <textarea className="field-textarea" value={details} onChange={(event) => setDetails(event.target.value)} placeholder={collection === "tasks" ? "备注（可选）；具体下一步可稍后补充" : "当前进度或补充说明（可选）"} />
       <div className="flex flex-wrap gap-2"><Button disabled={savingEntity} onClick={() => void saveInitialEntity()}><Plus />{savingEntity ? "正在保存" : `新增${collectionLabel(collection)}`}</Button><span className="form-help self-center">目前已有 {(["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"] as EditableCollection[]).reduce((sum, key) => sum + db[key].filter((item) => !item.archived).length, 0)} 条活动记录。</span></div>
     </div></section>
-    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">③ 用 AI 整理（可选）</h2><span className="panel-meta">AI 只生成待审阅草稿；未连接模型也能手工完成初始化。</span></div><Button variant="outline" onClick={() => go("settings")}>配置模型</Button></div><div className="panel-body stack"><textarea className="field-textarea min-h-32" value={situation} onChange={(event) => setSituation(event.target.value)} placeholder="可以描述目前真实在学的课程、正在做的科研或项目、近期目标。不要担心格式；空缺信息会留空或由助手追问。" /><Button variant="outline" onClick={askAi}><Bot />前往 AI 助手整理</Button></div></section>
+    <section className="panel"><div className="panel-head"><div><h2 className="panel-title">③ 用 AI 整理（可选）</h2><span className="panel-meta">粘贴内容会先保存为本机附件；进入助手后你还要预览并逐项确认发送给 ChatGPT。</span></div><Button variant="outline" onClick={() => go("settings")}>ChatGPT 配置</Button></div><div className="panel-body stack"><textarea className="field-textarea min-h-32" value={situation} onChange={(event) => setSituation(event.target.value)} placeholder="可以粘贴个人经历、课程清单、论文摘要或计划草稿。原文不会进入 Git 同步的聊天 JSON。" /><Button variant="outline" disabled={savingImport} onClick={() => void askAi()}><Bot />{savingImport ? "仅保存到本机附件…" : "保存到本机并继续整理"}</Button></div></section>
   </div>;
 }
 
 function relationLabel(db: Database, ref?: EntityRef) {
   if (!ref) return "—";
-  const map: Record<EntityKind, EditableCollection> = { task: "tasks", learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals", grade: "grades" };
+  const map: Record<EntityKind, EditableCollection> = { task: "tasks", learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals", grade: "grades", internship: "internships", pending_item: "pendingItems", active_plan: "activePlans", achievement: "achievements" };
   const collection = map[ref.type]; const item = db[collection].find((entity) => entity.id === ref.id);
   return item ? entityTitle(collection, item) : ref.label ?? ref.id;
 }
@@ -474,6 +603,10 @@ function cardDetails(collection: EditableCollection, entity: AnyEntity): { summa
     case "goals": { const item = entity as Goal; const done = item.milestones.filter((m) => m.status === "completed").length; return { summary: item.description, meta: [["时间", item.timeframe], ["里程碑", `${done}/${item.milestones.length}`], ["下一步", item.nextAction], ["关联", `${item.linkedItems.length} 项`]] }; }
     case "tasks": { const item = entity as Task; return { summary: item.notes, meta: [["分类", item.category], ["截止", item.dueDate], ["优先级", item.priority], ["计划周", item.planningState === "week" || item.planningState === "needs_parent" ? item.plannedWeek : "收件箱 / 以后"]] }; }
     case "grades": { const item = entity as Grade; return { summary: item.courseType, meta: [["学期", item.semester], ["学分", item.credits], ["成绩", item.score], ["核心", item.isCore ? "是" : "否"]] }; }
+    case "pendingItems": { const item = entity as PendingItem; return { summary: item.description || item.desiredOutcome, meta: [["类别", item.categoryId], ["希望日期", item.targetDate], ["状态", item.status], ["关联", `${item.linkedRefs.length} 项`]] }; }
+    case "activePlans": { const item = entity as ActivePlan; return { summary: item.description, meta: [["时限", item.horizonId], ["下一步", item.nextAction], ["目标日期", item.targetDate], ["任务", `${item.taskIds.length} 项`]] }; }
+    case "achievements": { const item = entity as Achievement; return { summary: item.summary, meta: [["类别", item.categoryId], ["完成日期", item.achievedDate], ["来源计划", item.sourcePlanId], ["关联", `${item.linkedRefs.length} 项`]] }; }
+    case "internships": { const item = entity as Database["internships"][number]; return { summary: item.description, meta: [["岗位", item.role], ["时间", `${item.startDate || "?"} – ${item.endDate || "至今"}`], ["状态", statusLabels[item.status]], ["收获", item.outcomes]] }; }
   }
 }
 
@@ -481,7 +614,7 @@ function EntityEditor({ open, collection, entity, db, onClose, onSave }: { open:
   const [draft, setDraft] = useState<Record<string, unknown>>(() => prepareDraft(collection, entity)); const [saving, setSaving] = useState(false);
   const update = (key: string, value: unknown) => setDraft((current) => ({ ...current, [key]: value }));
   const submit = async () => {
-    const titleKey = collection === "grades" ? "course" : collection === "tasks" || collection === "papers" || collection === "goals" ? "title" : "name";
+    const titleKey = collection === "grades" ? "course" : collection === "internships" ? "organization" : ["tasks", "papers", "goals", "pendingItems", "activePlans", "achievements"].includes(collection) ? "title" : "name";
     if (!String(draft[titleKey] ?? "").trim()) { toast.error("请填写名称或标题"); return; }
     setSaving(true);
     try { await onSave(collection, serializeDraft(collection, draft) as Partial<AnyEntity> & { id?: string }); }
@@ -490,7 +623,7 @@ function EntityEditor({ open, collection, entity, db, onClose, onSave }: { open:
   return <Dialog open={open} onOpenChange={(next) => !next && onClose()}><DialogContent className="sm:max-w-3xl max-w-[calc(100%-1rem)]"><DialogHeader><DialogTitle>{entity ? "编辑" : "新增"}{collectionLabel(collection)}</DialogTitle><DialogDescription>保存后会立即写入本地 JSON 数据文件。</DialogDescription></DialogHeader><div className="dialog-form">{fields[collection].map((field) => <EditorField key={field.key} field={field} value={draft[field.key]} update={(value) => update(field.key, value)} db={db} entityId={entity?.id} />)}</div><DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button disabled={saving} onClick={() => void submit()}>{saving && <RefreshCw className="animate-spin" />}{saving ? "保存中" : "保存"}</Button></DialogFooter></DialogContent></Dialog>;
 }
 
-function collectionLabel(collection: EditableCollection) { return ({ tasks: "任务", learning: "课程", research: "科研项目", papers: "论文", projects: "项目", competitions: "竞赛", goals: "目标", grades: "成绩" } as const)[collection]; }
+function collectionLabel(collection: EditableCollection) { return ({ tasks: "任务", learning: "课程", research: "科研项目", papers: "论文", projects: "项目", competitions: "竞赛", goals: "目标", grades: "成绩", pendingItems: "待开始事项", activePlans: "进行中计划", achievements: "成果卡", internships: "实习经历" } as const)[collection]; }
 function prepareDraft(collection: EditableCollection, entity?: AnyEntity): Record<string, unknown> {
   const source = structuredClone(entity ?? defaultEntity(collection)) as unknown as Record<string, unknown>;
   for (const field of fields[collection]) if (field.type === "list" && Array.isArray(source[field.key])) source[field.key] = (source[field.key] as unknown[]).join(", ");
@@ -543,6 +676,8 @@ function EditorField({ field, value, update, db, entityId }: { field: FieldDef; 
   else if (field.type === "milestones") control = <MilestonesEditor value={(value as Milestone[]) ?? []} update={update} db={db} goalId={entityId} />;
   else if (field.type === "resources") control = <textarea id={id} className="field-textarea" value={formatResources(value)} onChange={(event) => update(parseResources(event.target.value))} />;
   else if (field.type === "meetings") control = <textarea id={id} className="field-textarea" value={formatMeetings(value)} onChange={(event) => update(parseMeetings(event.target.value))} />;
+  else if (field.type === "category") control = <select id={id} className="field-select" value={String(value ?? "general")} onChange={(event) => update(event.target.value)}>{db.settings.stageCategories.filter((item) => !item.archived).sort((a, b) => a.sortOrder - b.sortOrder).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>;
+  else if (field.type === "horizon") control = <select id={id} className="field-select" value={String(value ?? "")} onChange={(event) => update(event.target.value)}>{db.settings.planningHorizons.filter((item) => !item.archived).sort((a, b) => a.sortOrder - b.sortOrder).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>;
   else control = <input id={id} className="field-input" type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"} value={String(value ?? "")} onChange={(event) => update(event.target.value)} />;
   return <div className={`form-field ${field.wide ? "wide" : ""}`}><label className="form-label" htmlFor={id}>{field.label}</label>{control}{field.help && <div className="form-help">{field.help}</div>}</div>;
 }
@@ -551,6 +686,8 @@ const entityMap: { type: EntityKind; collection: EditableCollection; label: stri
   { type: "learning", collection: "learning", label: "课程" }, { type: "research", collection: "research", label: "科研" },
   { type: "paper", collection: "papers", label: "论文" }, { type: "project", collection: "projects", label: "项目" },
   { type: "competition", collection: "competitions", label: "竞赛" }, { type: "goal", collection: "goals", label: "目标" }, { type: "task", collection: "tasks", label: "任务" },
+  { type: "internship", collection: "internships", label: "实习" }, { type: "pending_item", collection: "pendingItems", label: "待开始事项" },
+  { type: "active_plan", collection: "activePlans", label: "进行中计划" }, { type: "achievement", collection: "achievements", label: "成果卡" },
 ];
 function RelationPicker({ value, update, db, primary = false }: { value?: EntityRef; update: (value?: EntityRef) => void; db: Database; primary?: boolean }) {
   const selected = value ? `${value.type}:${value.id}` : "";
@@ -582,7 +719,14 @@ function MilestoneRefsEditor({ value, update, db }: { value: MilestoneRef[]; upd
 }
 function ModulesEditor({ value, update }: { value: LearningModule[]; update: (value: LearningModule[]) => void }) {
   const patch = (index: number, next: Partial<LearningModule>) => update(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item));
-  return <div className="stack">{value.map((module, index) => <div className="panel-body rounded-lg border" key={module.id}><div className="flex gap-2"><input className="field-input" value={module.title} placeholder="模块名称" onChange={(event) => patch(index, { title: event.target.value })} /><select className="field-select max-w-36" value={module.status} onChange={(event) => patch(index, { status: event.target.value as Status })}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><Button variant="ghost" size="icon-sm" onClick={() => update(value.filter((_, itemIndex) => itemIndex !== index))}><X /></Button></div><div className="mt-2"><label className="form-label">知识点（逗号分隔）</label><input className="field-input" value={module.topics.map((topic) => topic.title).join(", ")} onChange={(event) => patch(index, { topics: event.target.value.split(/[,，]/).map((title, topicIndex) => ({ id: module.topics[topicIndex]?.id ?? `topic_${Date.now()}_${topicIndex}`, title: title.trim(), status: module.topics[topicIndex]?.status ?? "not_started" as Status })).filter((topic) => topic.title) })} /></div></div>)}<Button variant="outline" size="sm" onClick={() => update([...value, { id: `module_${Date.now()}`, title: "", status: "not_started", topics: [] }])}><Plus />添加模块</Button></div>;
+  const patchTopic = (moduleIndex: number, topicIndex: number, next: Partial<LearningModule["topics"][number]>) => {
+    const currentModule = value[moduleIndex];
+    patch(moduleIndex, { topics: currentModule.topics.map((topic, index) => index === topicIndex ? { ...topic, ...next } : topic) });
+  };
+  return <div className="stack">{value.map((module, index) => <div className="panel-body rounded-lg border" key={module.id}>
+    <div className="flex gap-2"><input className="field-input" value={module.title} placeholder="章节 / 模块名称" onChange={(event) => patch(index, { title: event.target.value })} /><select className="field-select max-w-36" aria-label={`${module.title || "模块"} 状态`} value={module.status} onChange={(event) => patch(index, { status: event.target.value as Status })}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><Button variant="ghost" size="icon-sm" aria-label="删除模块" onClick={() => update(value.filter((_, itemIndex) => itemIndex !== index))}><X /></Button></div>
+    <div className="stack mt-3">{module.topics.map((topic, topicIndex) => <div className="flex items-center gap-2" key={topic.id}><input className="field-input" aria-label="知识点名称" value={topic.title} placeholder="知识点" onChange={(event) => patchTopic(index, topicIndex, { title: event.target.value })} /><select className="field-select max-w-36" aria-label={`${topic.title || "知识点"} 状态`} value={topic.status} onChange={(event) => patchTopic(index, topicIndex, { status: event.target.value as Status })}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><Button variant="ghost" size="icon-sm" aria-label="删除知识点" onClick={() => patch(index, { topics: module.topics.filter((_, position) => position !== topicIndex) })}><X /></Button></div>)}<Button variant="outline" size="sm" onClick={() => patch(index, { topics: [...module.topics, { id: `topic_${crypto.randomUUID()}`, title: "", status: "not_started" }] })}><Plus />添加知识点</Button></div>
+  </div>)}<Button variant="outline" size="sm" onClick={() => update([...value, { id: `module_${crypto.randomUUID()}`, title: "", status: "not_started", topics: [] }])}><Plus />添加模块 / 章节</Button></div>;
 }
 function MilestonesEditor({ value, update, db, goalId }: { value: Milestone[]; update: (value: Milestone[]) => void; db: Database; goalId?: string }) {
   const patch = (index: number, next: Partial<Milestone>) => update(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item));
@@ -725,7 +869,7 @@ function GpaPage({ db, edit, archive }: { db: Database; edit: (entity: Grade) =>
 }
 
 function ArchivePage({ db, restore, remove }: { db: Database; restore: (collection: EditableCollection, entity: AnyEntity) => Promise<void>; remove: (collection: EditableCollection, id: string, hard?: boolean) => Promise<void> | void }) {
-  const collections = Object.keys(viewCollection).map((view) => viewCollection[view as ViewKey]).filter(Boolean) as EditableCollection[]; collections.push("tasks", "grades");
+  const collections = Object.keys(viewCollection).map((view) => viewCollection[view as ViewKey]).filter(Boolean) as EditableCollection[]; collections.push("tasks", "grades", "pendingItems", "activePlans", "achievements", "internships");
   const entries = [...new Set(collections)].flatMap((collection) => (db[collection] as AnyEntity[]).filter((entity) => entity.archived).map((entity) => ({ collection, entity })));
   return <section className="panel"><div className="panel-head"><h2 className="panel-title">已归档内容</h2><span className="panel-meta">{entries.length} 条 · 归档不会丢失数据</span></div><div className="panel-body">{entries.length ? entries.map(({ collection, entity }) => <div className="archive-row" key={`${collection}-${entity.id}`}><div><strong>{entityTitle(collection, entity)}</strong><div className="row-subtitle">{collectionLabel(collection)} · 更新于 {entity.updatedAt.slice(0, 10)}</div></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => void restore(collection, entity)}>恢复</Button><ConfirmButton title="永久删除这条记录？" description="此操作无法撤销，但不会影响其他记录。" action="永久删除" onConfirm={() => remove(collection, entity.id, true)} /></div></div>) : <PageEmpty>归档还是空的。</PageEmpty>}</div></section>;
 }
@@ -739,7 +883,7 @@ function SettingsPage({ db, setDb }: { db: Database; setDb: (db: Database) => vo
   const [archiveIds, setArchiveIds] = useState<string[]>([]);
   const { theme, setTheme } = useTheme();
   const refreshData = useCallback(async () => { setDb(await api<Database>("/api/data")); }, [setDb]);
-  const collections: EditableCollection[] = ["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"];
+  const collections: EditableCollection[] = ["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "pendingItems", "activePlans", "achievements", "internships"];
   const candidates = (db[archiveCollection] as AnyEntity[]).filter((item) => !item.archived);
   const saveSettings = async (next: AppSettings) => {
     setSaving(true);
@@ -762,6 +906,7 @@ function SettingsPage({ db, setDb }: { db: Database; setDb: (db: Database) => vo
     <div className="stack">
       <ModelSettings refreshData={refreshData} />
       <WorkspaceDataSettings db={db} refresh={refreshData} />
+      <StageSettings key={db.settings.dataRevision} settings={db.settings} onSave={saveSettings} />
       <section className="panel"><div className="panel-head"><div><h2 className="panel-title">GPA 计算规则</h2><span className="panel-meta">从高分到低分匹配第一个规则</span></div><Button disabled={saving} onClick={() => void saveRules()}>保存规则</Button></div><div className="panel-body"><textarea className="field-textarea code-area" spellCheck={false} value={rules} onChange={(event) => setRules(event.target.value)} /><p className="form-help">修改 scale（满绩点）、minScore（最低分）、point（绩点）和 label（等级）。</p></div></section>
       <section className="panel"><div className="panel-head"><h2 className="panel-title">本地数据与恢复</h2></div><div className="panel-body"><p className="text-sm leading-6">正式数据保存在 <code>data/</code> 的 JSON 文件中。成功提交晚间复盘会创建本机快照；GitHub 私有仓库用于跨设备同步。未提交草稿仅保存在当前浏览器。</p><p className="form-help">不要直接删除 JSON 文件。误操作可从“归档”恢复，或从 Git 历史和 data/.backups 快照还原。</p></div></section>
     </div>
@@ -772,6 +917,21 @@ function SettingsPage({ db, setDb }: { db: Database; setDb: (db: Database) => vo
   </div>;
 }
 
+function StageSettings({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => Promise<void> }) {
+  const [categories, setCategories] = useState(settings.stageCategories);
+  const [horizons, setHorizons] = useState(settings.planningHorizons);
+  const [saving, setSaving] = useState(false);
+  const patchCategory = (index: number, key: "name" | "icon" | "color" | "sortOrder", raw: string) => setCategories((items) => items.map((item, position) => position === index ? { ...item, [key]: key === "sortOrder" ? Number(raw) : raw } : item));
+  const patchHorizon = (index: number, key: "name" | "minDays" | "maxDays" | "sortOrder", raw: string) => setHorizons((items) => items.map((item, position) => position === index ? { ...item, [key]: key === "name" ? raw : raw === "" ? undefined : Number(raw) } : item));
+  const save = async () => { setSaving(true); try { await onSave({ ...settings, stageCategories: categories, planningHorizons: horizons }); } finally { setSaving(false); } };
+  const addCategory = () => setCategories((items) => [...items, { id: `custom_${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}`, name: "新类别", icon: "Sparkles", color: "rose", sortOrder: Math.max(0, ...items.map((item) => item.sortOrder)) + 1 }]);
+  const addHorizon = () => setHorizons((items) => [...items, { id: `horizon_${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}`, name: "自定义时限", minDays: undefined, maxDays: undefined, sortOrder: Math.max(0, ...items.map((item) => item.sortOrder)) + 1 }]);
+  return <section className="panel"><div className="panel-head"><div><h2 className="panel-title">阶段类别与计划时限</h2><span className="panel-meta">类别在待开始、进行中和成果卡之间共用</span></div><Button size="sm" disabled={saving} onClick={() => void save()}>保存配置</Button></div><div className="panel-body stack">
+    <div><div className="flex items-center justify-between gap-3"><h3 className="form-label">成长档案类别</h3><Button variant="outline" size="sm" onClick={addCategory}><Plus />新增类别</Button></div><div className="stage-config-list">{categories.map((item, index) => <div className="stage-config-row" key={item.id}><input aria-label={`${item.name} 类别名称`} className="field-input" value={item.name} onChange={(event) => patchCategory(index, "name", event.target.value)} /><input aria-label="图标名称" className="field-input" value={item.icon} onChange={(event) => patchCategory(index, "icon", event.target.value)} placeholder="图标名" /><input aria-label="颜色名称" className="field-input" value={item.color} onChange={(event) => patchCategory(index, "color", event.target.value)} placeholder="颜色名" /><input aria-label="排序" className="field-input" type="number" value={item.sortOrder} onChange={(event) => patchCategory(index, "sortOrder", event.target.value)} /></div>)}</div><p className="form-help">旧类别不会被直接删除，避免已有记录失去归属。图标名和颜色名用于后续卡片呈现（例如 BookOpen / violet）。</p></div>
+    <div><div className="flex items-center justify-between gap-3"><h3 className="form-label">计划时限建议</h3><Button variant="outline" size="sm" onClick={addHorizon}><Plus />新增时限</Button></div><div className="stage-config-list">{horizons.map((item, index) => <div className="stage-config-row horizon-config-row" key={item.id}><input aria-label="时限名称" className="field-input" value={item.name} onChange={(event) => patchHorizon(index, "name", event.target.value)} /><label><span>最少天数</span><input aria-label={`${item.name} 最少天数`} className="field-input" type="number" min="0" value={item.minDays ?? ""} onChange={(event) => patchHorizon(index, "minDays", event.target.value)} /></label><label><span>最多天数</span><input aria-label={`${item.name} 最多天数`} className="field-input" type="number" min="0" value={item.maxDays ?? ""} onChange={(event) => patchHorizon(index, "maxDays", event.target.value)} /></label><input aria-label="时限排序" className="field-input" type="number" value={item.sortOrder} onChange={(event) => patchHorizon(index, "sortOrder", event.target.value)} /></div>)}</div><p className="form-help">以上范围只是建议，计划的实际开始和目标日期可以自由填写，不会被强制限制。</p></div>
+  </div></section>;
+}
+
 type PublicModelConnection = AppSettings["modelConnections"][number] & { connected: boolean; account?: string; isDefault: boolean };
 function ModelSettings({ refreshData }: { refreshData: () => Promise<void> }) {
   const [connections, setConnections] = useState<PublicModelConnection[]>([]);
@@ -779,7 +939,6 @@ function ModelSettings({ refreshData }: { refreshData: () => Promise<void> }) {
   const [loginSession, setLoginSession] = useState<{ id: string; url: string } | null>(null);
   const [loginStatus, setLoginStatus] = useState("");
   const [saving, setSaving] = useState(false); const [testing, setTesting] = useState("");
-  const [form, setForm] = useState({ id: "", name: "备用 OpenAI 兼容 API", baseUrl: "", protocol: "chat_completions" as "chat_completions" | "responses", modelId: "", apiKey: "" });
   const refresh = useCallback(async () => { const value = await api<{ connections: PublicModelConnection[] }>("/api/models"); setConnections(value.connections); }, []);
   useEffect(() => {
     let active = true;
@@ -806,9 +965,10 @@ function ModelSettings({ refreshData }: { refreshData: () => Promise<void> }) {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [loginSessionId, refresh, refreshData]);
   const beginLogin = async () => {
-    setSaving(true); setLoginStatus("请在弹出的官方页面完成授权；可点下方按钮重新打开");
-    try { const result = await api<{ id: string; authorizationUrl: string }>("/api/models/chatgpt/login", { method: "POST", body: "{}" }); setLoginSession({ id: result.id, url: result.authorizationUrl }); await refreshData(); await refresh(); }
-    catch (error) { setLoginStatus((error as Error).message); toast.error(`启动订阅登录失败：${(error as Error).message}`); }
+    const popup = window.open("about:blank", "_blank");
+    setSaving(true); setLoginStatus("正在启动 OpenAI 官方授权；请在新标签页中确认账号与订阅授权");
+    try { const result = await api<{ id: string; authorizationUrl: string }>("/api/models/chatgpt/login", { method: "POST", body: "{}" }); if (popup) popup.location.replace(result.authorizationUrl); setLoginSession({ id: result.id, url: result.authorizationUrl }); await refreshData(); await refresh(); }
+    catch (error) { popup?.close(); setLoginStatus((error as Error).message); toast.error(`启动订阅登录失败：${(error as Error).message}`); }
     finally { setSaving(false); }
   };
   const loadModels = async (id: string) => {
@@ -819,12 +979,8 @@ function ModelSettings({ refreshData }: { refreshData: () => Promise<void> }) {
     try { await api("/api/models", { method: "POST", body: JSON.stringify({ action: "choose-model", id, modelId }) }); await refresh(); await refreshData(); toast.success("默认模型已更新"); }
     catch (error) { toast.error(`模型选择失败：${(error as Error).message}`); }
   };
-  const setDefault = async (id: string) => {
-    try { await api("/api/models", { method: "POST", body: JSON.stringify({ action: "set-default", id }) }); await refresh(); await refreshData(); toast.success("默认渠道已更新；后续请求只使用此渠道"); }
-    catch (error) { toast.error((error as Error).message); }
-  };
   const test = async (id: string) => {
-    setTesting(id); try { const result = await api<{ response: string; channel: string }>("/api/models/test", { method: "POST", body: JSON.stringify({ connectionId: id }) }); toast.success(`${result.channel}完整响应成功：${result.response}`); }
+    setTesting(id); try { const result = await api<{ response: string; channel: string }>("/api/models/test", { method: "POST", body: JSON.stringify({ connectionId: id }) }); await refresh(); toast.success(`${result.channel}完整响应成功：${result.response}`); }
     catch (error) { toast.error(`连接测试失败：${(error as Error).message}`); }
     finally { setTesting(""); }
   };
@@ -835,56 +991,36 @@ function ModelSettings({ refreshData }: { refreshData: () => Promise<void> }) {
       toast.success(result.remoteRevocationConfirmed ? "本機憑據已清除，官方會話也已撤銷" : "本機憑據已清除；官方撤銷未確認。若要立即取消遠端授權，請在 ChatGPT 設置中斷開 Research OS");
     } catch (error) { toast.error(`断开失败：${(error as Error).message}`); }
   };
-  const saveCustom = async () => {
-    setSaving(true); try {
-      const result = await api<{ connection: AppSettings["modelConnections"][number]; needsKey: boolean }>("/api/models/custom", { method: "POST", body: JSON.stringify(form) });
-      setForm({ ...form, id: result.connection.id, apiKey: "" }); await refresh(); await refreshData(); toast.success(result.needsKey ? "连接配置已保存；请在本机填写 API Key" : "备用 API 配置已保存");
-    } catch (error) { toast.error(`备用 API 保存失败：${(error as Error).message}`); }
-    finally { setSaving(false); }
-  };
-  const customConnections = connections.filter((item) => item.kind === "openai_compatible");
-  return <section className="panel"><div className="panel-head"><div><h2 className="panel-title">模型配置</h2><span className="panel-meta">ChatGPT 订阅优先；API 仅作备用，只有你手动设为默认才会调用。</span></div></div><div className="panel-body stack">
-    <div className="ai-channel-card"><div><strong>ChatGPT 订阅</strong><div className="row-subtitle">按账号实际模型目录显示；连接失败不会自动调用 API。</div></div><Button disabled={saving || Boolean(loginSession)} onClick={() => void beginLogin()}>{loginSession ? "等待官方授权" : connections.some((item) => item.kind === "chatgpt_subscription" && item.connected) ? "重新登录" : "Continue with ChatGPT"}</Button></div>
+  return <section className="panel"><div className="panel-head"><div><h2 className="panel-title">ChatGPT 订阅连接</h2><span className="panel-meta">本页面只使用 ChatGPT 订阅计划；连接或额度不可用时不会改用其他 API。</span></div></div><div className="panel-body stack">
+    <div className="ai-channel-card"><div><strong>使用 ChatGPT 订阅计划</strong><div className="row-subtitle">点击后前往 OpenAI 官方授权页；Research OS 不会获取或保存你的 ChatGPT 密码。</div></div><Button disabled={saving || Boolean(loginSession)} onClick={() => void beginLogin()}>{loginSession ? "等待官方授权" : connections.some((item) => item.kind === "chatgpt_subscription" && item.connected) ? "重新连接账号" : "连接 ChatGPT"}</Button></div>
     {loginStatus && <p className="form-help">{loginStatus}</p>}
     {loginSession && <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href={loginSession.url} target="_blank" rel="noreferrer">打开 OpenAI 官方授权页</a></Button><Button variant="outline" onClick={() => { void api(`/api/models/chatgpt/login/${loginSession.id}`, { method: "DELETE" }).then(() => setLoginSession(null)); }}>取消授权</Button></div>}
-    {connections.filter((item) => item.kind === "chatgpt_subscription").map((connection) => <div className="ai-channel-card" key={connection.id}><div><strong>{connection.connected ? `已连接${connection.account ? ` · ${connection.account}` : ""}` : "需要在本机登录"}</strong><div className="row-subtitle">{connection.modelId ? `默认模型：${connection.modelId}` : "尚未选择模型"} · {connection.isDefault ? "当前默认渠道（订阅）" : "可用订阅渠道"}</div></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadModels(connection.id)}>刷新账号模型列表</Button><Button variant="outline" size="sm" disabled={!connection.connected || testing === connection.id} onClick={() => void test(connection.id)}>{testing === connection.id ? "测试中…" : "测试完整响应"}</Button><Button variant="outline" size="sm" onClick={() => void setDefault(connection.id)}>设为默认</Button><Button variant="ghost" size="sm" disabled={!connection.connected} onClick={() => void disconnect()}>断开</Button></div>
+    {connections.filter((item) => item.kind === "chatgpt_subscription").map((connection) => <div className="ai-channel-card" key={connection.id}><div><strong>{connection.connected ? `本机凭据已保存${connection.account ? ` · ${connection.account}` : ""}` : "此设备尚未连接"}</strong><div className="row-subtitle">{connection.verifiedAt ? `完整推理已验证 · ${connection.verifiedAt.slice(0, 10)}` : "尚未通过完整模型响应测试"} · {connection.modelId ? `模型：${connection.modelId}` : "尚未选择模型"}</div></div><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadModels(connection.id)}>刷新账号模型列表</Button><Button variant="outline" size="sm" disabled={!connection.connected || testing === connection.id} onClick={() => void test(connection.id)}>{testing === connection.id ? "测试中…" : "测试完整响应"}</Button><Button variant="ghost" size="sm" disabled={!connection.connected} onClick={() => void disconnect()}>断开本机连接</Button></div>
       {models[connection.id] && <div className="mt-3"><label className="form-label">账号当前可用模型</label><select className="field-select" value={connection.modelId ?? ""} onChange={(event) => void chooseModel(connection.id, event.target.value)}><option value="">请选择账号目录中的模型</option>{models[connection.id].map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>}
     </div>)}
-    <div className="panel-body rounded-lg border stack"><div><h3 className="panel-title">备用 API（OpenAI 兼容）</h3><p className="form-help">密钥仅写入本机用户凭据目录；不会进入 JSON 业务数据、聊天或 Git。Responses / Chat Completions 二选一。</p></div>
-      {customConnections.map((connection) => <div className="ai-channel-card" key={connection.id}><div><strong>{connection.name} · {connection.connected ? "此设备已填密钥" : "另一设备需重新填写密钥"}</strong><div className="row-subtitle">{connection.baseUrl} · {connection.modelId || "未设置模型 ID"} · {connection.isDefault ? "当前默认渠道（API）" : "备用"}</div></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => { setForm({ id: connection.id, name: connection.name, baseUrl: connection.baseUrl ?? "", protocol: connection.protocol ?? "chat_completions", modelId: connection.modelId ?? "", apiKey: "" }); void loadModels(connection.id); }}>编辑 / 读模型列表</Button><Button variant="outline" size="sm" disabled={testing === connection.id} onClick={() => void test(connection.id)}>{testing === connection.id ? "测试中…" : "测试完整响应"}</Button><Button variant="outline" size="sm" onClick={() => void setDefault(connection.id)}>手动切换为默认</Button><Button variant="ghost" size="sm" onClick={() => void api("/api/models", { method: "POST", body: JSON.stringify({ action: "remove", id: connection.id }) }).then(() => refresh()).then(() => toast.success("备用连接已移除"))}>移除</Button></div></div>)}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><input className="field-input" placeholder="连接名称" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /><input className="field-input" placeholder="Base URL（例如 https://api.example.com/v1）" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.target.value })} /><select className="field-select" value={form.protocol} onChange={(event) => setForm({ ...form, protocol: event.target.value as typeof form.protocol })}><option value="chat_completions">OpenAI 兼容 · Chat Completions</option><option value="responses">OpenAI 兼容 · Responses</option></select><input className="field-input" placeholder="模型 ID（可手工填写）" value={form.modelId} onChange={(event) => setForm({ ...form, modelId: event.target.value })} /><input className="field-input md:col-span-2" type="password" autoComplete="new-password" placeholder={form.id ? "API Key（留空保留现有密钥）" : "API Key（仅保存在本机）"} value={form.apiKey} onChange={(event) => setForm({ ...form, apiKey: event.target.value })} /></div>
-      <div className="flex flex-wrap gap-2"><Button disabled={saving} onClick={() => void saveCustom()}>{saving ? "保存中…" : "保存备用 API"}</Button>{form.id && <Button variant="outline" onClick={() => { void api(`/api/models/catalog?connectionId=${encodeURIComponent(form.id)}`).then((value: unknown) => { const list = (value as { models: { id: string; name: string }[] }).models; setModels((current) => ({ ...current, [form.id]: list })); }).catch((error) => toast.error((error as Error).message)); }}>获取模型列表</Button>}</div>
-    </div>
-    <p className="form-help">切换为 API 后，模型调用可能产生该服务的 API 费用；ChatGPT 订阅调用不显示或计入 API 账单。</p>
+    <p className="form-help">连接状态只代表本机凭据存在；只有“测试完整响应”成功后才标记为模型推理已验证。订阅调用不显示或计入 API 账单。</p>
   </div></section>;
 }
 
 function WorkspaceDataSettings({ db, refresh }: { db: Database; refresh: () => Promise<void> }) {
   const [backups, setBackups] = useState<{ id: string; createdAt: string; schemaVersion: number; counts: Record<string, number>; valid: boolean; error?: string }[]>([]);
   const [preview, setPreview] = useState<{ id: string; counts: Record<string, number>; schemaVersion: number } | null>(null);
-  const [initialization, setInitialization] = useState<{ counts: Record<string, number>; total: number; dataEpoch: string; dataRevision: number } | null>(null);
-  const [confirmation, setConfirmation] = useState(""); const [restoreConfirmation, setRestoreConfirmation] = useState(""); const [busy, setBusy] = useState(false);
+  const [restoreConfirmation, setRestoreConfirmation] = useState(""); const [busy, setBusy] = useState(false);
   const refreshBackups = async () => { setBackups(await api("/api/workspace/backups")); };
   useEffect(() => {
     let active = true;
     void api<typeof backups>("/api/workspace/backups").then((value) => { if (active) setBackups(value); }).catch(() => undefined);
     return () => { active = false; };
   }, []);
-  const previewReset = async () => { try { const result = await api<typeof initialization>("/api/workspace/preview"); setInitialization(result); setConfirmation(""); } catch (error) { toast.error((error as Error).message); } };
-  const reset = async () => {
-    if (!initialization) return;
-    setBusy(true); try { await api("/api/workspace/initialize", { method: "POST", body: JSON.stringify({ expectedRevision: initialization.dataRevision, confirmation }) }); await refresh(); await refreshBackups(); setInitialization(null); setConfirmation(""); toast.success("工作区已初始化；操作前快照已保存在本机"); }
-    catch (error) { toast.error(`初始化未执行：${(error as Error).message}`); } finally { setBusy(false); }
-  };
   const inspect = async (id: string) => { try { setPreview(await api(`/api/workspace/backups/${encodeURIComponent(id)}`)); setRestoreConfirmation(""); } catch (error) { toast.error((error as Error).message); } };
   const restore = async () => {
     if (!preview) return;
     setBusy(true); try { await api("/api/workspace/restore", { method: "POST", body: JSON.stringify({ id: preview.id, expectedRevision: db.settings.dataRevision, confirmation: restoreConfirmation }) }); await refresh(); await refreshBackups(); setPreview(null); setRestoreConfirmation(""); toast.success("备份已恢复；恢复前数据也已另行备份"); }
     catch (error) { toast.error(`恢复未完成：${(error as Error).message}`); } finally { setBusy(false); }
   };
-  return <section className="panel"><div className="panel-head"><div><h2 className="panel-title">本地备份、初始化与恢复</h2><span className="panel-meta">数据保存在 data/*.json；快照位于 data/.backups，且不会进入 Git。</span></div><DatabaseBackup /></div><div className="panel-body stack">
-    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void refreshBackups()}>刷新备份列表</Button><Button variant="destructive" onClick={() => void previewReset()}>预览并初始化工作区</Button></div>
-    {initialization && <div className="panel-body rounded-lg border stack"><strong>将清空以下活动与归档记录，模型连接设置保留：</strong><div className="row-subtitle">{Object.entries(initialization.counts).map(([key, value]) => `${collectionLabel(key as EditableCollection)} ${value}`).join(" · ")} · 合计 {initialization.total} 条</div><label className="form-label">先完整备份，再输入“清空并开始”</label><input className="field-input" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /><Button variant="destructive" disabled={busy || confirmation !== "清空并开始"} onClick={() => void reset()}>{busy ? "正在备份并初始化…" : "创建快照后初始化"}</Button><p className="form-help">服务端会先创建并校验包含业务 JSON 与聊天记录的快照；快照失败则不会清理。初始化会换发 dataEpoch，旧标签页与待确认草稿将失效。</p></div>}
+  return <section className="panel"><div className="panel-head"><div><h2 className="panel-title">本地备份与恢复</h2><span className="panel-meta">数据保存在 data/*.json；快照位于 data/.backups，且不会进入 Git。本轮改造不清空工作区。</span></div><div className="flex flex-wrap gap-2"><Button asChild variant="outline"><a href="/api/attachments/export" download>导出附件包</a></Button><DatabaseBackup /></div></div><div className="panel-body stack">
+    <p className="form-help">原始附件单独保存在本机用户目录，不进入 Git、JSON 快照或聊天记录。导出的 ZIP 含原件与 SHA-256 清单；换电脑恢复附件时需手动解压并重新添加。若文件原件已缺失，清单会明确标出。</p>
+    <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void refreshBackups()}>刷新备份列表</Button></div>
     <div className="backup-list">{backups.map((backup) => <div className="archive-row" key={backup.id}><div><strong>{backup.id}</strong><div className="row-subtitle">{new Date(backup.createdAt).toLocaleString("zh-CN")} · v{backup.schemaVersion} · {backup.valid ? Object.values(backup.counts).reduce((sum, value) => sum + value, 0) : "不可恢复"} 条</div>{!backup.valid && <div className="warning-text">{backup.error}</div>}</div><Button variant="outline" size="sm" disabled={!backup.valid} onClick={() => void inspect(backup.id)}>恢复预览</Button></div>)}{!backups.length && <PageEmpty>还没有本机快照。</PageEmpty>}</div>
     {preview && <div className="panel-body rounded-lg border stack"><strong>恢复预览：{preview.id}</strong><div className="row-subtitle">{Object.entries(preview.counts).map(([key, value]) => `${collectionLabel(key as EditableCollection)} ${value}`).join(" · ")}</div><p className="form-help">恢复前当前数据会先备份；恢复事务完成后会生成新数据代次，草稿失效。</p><label className="form-label">输入“恢复此备份”</label><input className="field-input" value={restoreConfirmation} onChange={(event) => setRestoreConfirmation(event.target.value)} /><div className="flex gap-2"><Button disabled={busy || restoreConfirmation !== "恢复此备份"} onClick={() => void restore()}>{busy ? "恢复中…" : "确认整组恢复"}</Button><Button variant="outline" onClick={() => setPreview(null)}>取消</Button></div></div>}
   </div></section>;
@@ -895,6 +1031,7 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
   const [conversation, setConversation] = useState<AIConversation | null>(null);
   const [models, setModels] = useState<{ connections: PublicModelConnection[]; defaultModelConnectionId: string } | null>(null);
   const [composer, setComposer] = useState(""); const [includeGrades, setIncludeGrades] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentPreview[]>([]); const [approvedAttachmentIds, setApprovedAttachmentIds] = useState<string[]>([]); const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [contextHint, setContextHint] = useState(""); const [sending, setSending] = useState(false); const [streaming, setStreaming] = useState("");
   const [edits, setEdits] = useState<Record<string, { selected: boolean; raw: string }[]>>({});
   const [applying, setApplying] = useState("");
@@ -908,20 +1045,57 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
       if (!active) return;
       const initial = sessionStorage.getItem("research-os-assistant-prefill");
       if (initial) { setComposer(initial); setContextHint("初始化引导"); sessionStorage.removeItem("research-os-assistant-prefill"); }
+      const attachmentDraft = sessionStorage.getItem("research-os-assistant-attachment-ids");
+      if (attachmentDraft) {
+        sessionStorage.removeItem("research-os-assistant-attachment-ids");
+        try {
+          const ids = JSON.parse(attachmentDraft) as string[];
+          void api<{ attachments: AttachmentPreview[] }>("/api/attachments/preview", { method: "POST", body: JSON.stringify({ ids }) }).then((value) => { if (active) setAttachments(value.attachments); }).catch((error) => toast.error(`读取本机附件预览失败：${(error as Error).message}`));
+        } catch { toast.error("附件草稿无效，请重新选择本机文件"); }
+      }
     });
     return () => { active = false; };
   }, []);
+  const addFiles = async (files: File[]) => {
+    if (!files.length) return;
+    setUploadingAttachments(true);
+    try {
+      const results = await uploadLocalFiles(files, db.settings.dataEpoch);
+      setAttachments((current) => [...current.filter((item) => !results.some((result) => result.attachment.id === item.attachment.id)), ...results]);
+      toast.success("原件只保存到本机附件目录；请先检查摘取预览，再逐项确认发送");
+    } catch (error) { toast.error(`附件导入失败：${(error as Error).message}`); }
+    finally { setUploadingAttachments(false); }
+  };
+  const saveComposerAsAttachment = async () => {
+    if (!composer.trim()) { toast.error("先粘贴要导入的长文本"); return; }
+    setUploadingAttachments(true);
+    try {
+      const file = new File([composer], `粘贴资料-${today(db.settings.timeZone)}.txt`, { type: "text/plain" });
+      const results = await uploadLocalFiles([file], db.settings.dataEpoch, "pasted_text");
+      setAttachments((current) => [...current, ...results]); setComposer(""); toast.success("长文本已转为本机附件草稿，不会进入聊天 JSON");
+    } catch (error) { toast.error(`保存文本附件失败：${(error as Error).message}`); }
+    finally { setUploadingAttachments(false); }
+  };
+  const removeSelectedAttachment = async (attachmentId: string) => {
+    try { await api(`/api/attachments?id=${encodeURIComponent(attachmentId)}`, { method: "DELETE" }); setAttachments((items) => items.filter((item) => item.attachment.id !== attachmentId)); setApprovedAttachmentIds((ids) => ids.filter((id) => id !== attachmentId)); }
+    catch (error) { toast.error(`附件未删除：${(error as Error).message}`); }
+  };
   const openConversation = async (id: string) => { try { setConversation(await api(`/api/assistant/conversations/${encodeURIComponent(id)}`)); } catch (error) { toast.error((error as Error).message); } };
   const newConversation = async () => { try { const value = await api<AIConversation>("/api/assistant/conversations", { method: "POST", body: JSON.stringify({ title: "新对话" }) }); setConversation(value); await refreshList(); } catch (error) { toast.error((error as Error).message); } };
   const send = async () => {
-    if (!composer.trim() || sending) return;
+    if ((!composer.trim() && !attachments.length) || sending) return;
+    if (attachments.some((item) => !item.available && item.available !== undefined)) { toast.error("有附件原件缺失，请重新添加后再发送"); return; }
+    if (attachments.some((item) => !approvedAttachmentIds.includes(item.attachment.id))) { toast.error("请先检查并逐项确认本次要发送给 ChatGPT 的附件"); return; }
+    if (composer.length > 1_000) { toast.error("长篇资料请先点“将长文本存为本机附件”，检查预览并逐项确认；聊天记录只保存简短指令"); return; }
     setSending(true); setStreaming("");
     try {
+      const requestText = composer.trim() || "请整理附件中的真实资料，按 Research OS 的成长档案提出有来源依据、逐项可审阅的操作草稿。不得猜测。";
       let active = conversation;
-      if (!active) { active = await api<AIConversation>("/api/assistant/conversations", { method: "POST", body: JSON.stringify({ title: composer.trim().slice(0, 36) }) }); setConversation(active); }
-      const userMessage: AIConversationMessage = { id: crypto.randomUUID().replaceAll("-", ""), role: "user", text: composer.trim(), createdAt: new Date().toISOString(), status: "complete", usesGradeContext: includeGrades };
+      if (!active) { active = await api<AIConversation>("/api/assistant/conversations", { method: "POST", body: JSON.stringify({ title: requestText.slice(0, 36) }) }); setConversation(active); }
+      const userMessage: AIConversationMessage = { id: crypto.randomUUID().replaceAll("-", ""), role: "user", text: requestText, createdAt: new Date().toISOString(), status: "complete", usesGradeContext: includeGrades, attachmentRefs: attachments.map(({ attachment }) => ({ id: attachment.id, filename: attachment.filename, mimeType: attachment.mimeType, sha256: attachment.sha256, extractedSummary: attachment.extractedSummary })) };
       setConversation({ ...active, messages: [...active.messages, userMessage] });
-      const response = await fetch("/api/assistant/send", { method: "POST", headers: { "Content-Type": "application/json", "x-research-os-epoch": db.settings.dataEpoch }, body: JSON.stringify({ conversationId: active.id, text: composer.trim(), includeGrades, contextHint }) });
+      const attachmentIds = attachments.map((item) => item.attachment.id);
+      const response = await fetch("/api/assistant/send", { method: "POST", headers: { "Content-Type": "application/json", "x-research-os-epoch": db.settings.dataEpoch }, body: JSON.stringify({ conversationId: active.id, text: requestText, includeGrades, contextHint, attachmentIds, attachmentConsent: approvedAttachmentIds }) });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || `请求失败：${response.status}`);
       if (!response.body) throw new Error("浏览器未能读取助手响应流");
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = ""; let resultConversationId = active.id; let completed = false;
@@ -932,7 +1106,7 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
         const payload = JSON.parse(data) as { delta?: string; error?: string; conversationId?: string; message?: AIConversationMessage };
         if (payload.conversationId) resultConversationId = payload.conversationId;
         if (event === "delta" && payload.delta) setStreaming((value) => (value + payload.delta).slice(-6000));
-        if (event === "complete" && payload.message) { setConversation((value) => value ? { ...value, id: resultConversationId, messages: [...value.messages, payload.message!] } : value); completed = true; setComposer(""); setIncludeGrades(false); setContextHint(""); }
+        if (event === "complete" && payload.message) { setConversation((value) => value ? { ...value, id: resultConversationId, messages: [...value.messages, payload.message!] } : value); completed = true; setComposer(""); setIncludeGrades(false); setContextHint(""); setAttachments([]); setApprovedAttachmentIds([]); }
         if (event === "error") throw new Error(payload.error || "助手请求失败");
       };
       while (true) { const { value, done } = await reader.read(); buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done }); let split: number; while ((split = buffer.indexOf("\n\n")) >= 0) { const block = buffer.slice(0, split); buffer = buffer.slice(split + 2); handleBlock(block); } if (done) break; }
@@ -953,11 +1127,12 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
     catch { toast.error("请先修正草稿中的 JSON 格式，或取消这份草稿"); return; }
     const indexes = editList.map((item, index) => item.selected ? index : -1).filter((index) => index >= 0);
     if (!indexes.length) { toast.error("至少勾选一项操作"); return; }
+    const operationId = crypto.randomUUID().replaceAll("-", "");
     setApplying(proposal.id);
     try {
       const common = { conversationId: conversation.id, proposalId: proposal.id, indexes, editedChanges, expectedRevision: proposal.dataRevision };
-      await api("/api/assistant/apply", { method: "POST", body: JSON.stringify({ ...common, operationId: crypto.randomUUID().replaceAll("-", ""), validateOnly: true }) });
-      await api("/api/assistant/apply", { method: "POST", body: JSON.stringify({ ...common, operationId: crypto.randomUUID().replaceAll("-", "") }) });
+      await api("/api/assistant/apply", { method: "POST", body: JSON.stringify({ ...common, operationId, validateOnly: true }) });
+      await api("/api/assistant/apply", { method: "POST", body: JSON.stringify({ ...common, operationId }) });
       toast.success("已按你勾选和编辑的内容保存；本批操作具备幂等保护");
       setConversation(await api(`/api/assistant/conversations/${encodeURIComponent(conversation.id)}`));
       await refresh();
@@ -967,7 +1142,10 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
   const cancelProposal = async (message: AIConversationMessage) => {
     if (!conversation || !message.proposal) return;
     const next = { ...conversation, messages: conversation.messages.map((item) => item.id === message.id ? { ...item, proposal: undefined } : item), updatedAt: new Date().toISOString() };
-    try { setConversation(await api<AIConversation>(`/api/assistant/conversations/${encodeURIComponent(conversation.id)}`, { method: "PUT", body: JSON.stringify(next) })); }
+    try {
+      await api(`/api/assistant/drafts?conversationId=${encodeURIComponent(conversation.id)}&proposalId=${encodeURIComponent(message.proposal.id)}`, { method: "DELETE" });
+      setConversation(next);
+    }
     catch (error) { toast.error((error as Error).message); }
   };
   const collectionForView = (collection: string) => collection in ({ tasks: 1, learning: 1, research: 1, papers: 1, projects: 1, competitions: 1, goals: 1, grades: 1 }) ? collectionLabel(collection as EditableCollection) : collection;
@@ -975,6 +1153,7 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
     <aside className="assistant-history panel"><div className="panel-head"><h2 className="panel-title">对话</h2><Button size="sm" variant="outline" onClick={() => void newConversation()}><Plus />新对话</Button></div><div className="panel-body choice-list">{conversations.map((item) => <button className={`assistant-history-item ${conversation?.id === item.id ? "active" : ""}`} key={item.id} onClick={() => void openConversation(item.id)}><strong>{item.title}</strong><small>{item.messageCount} 条消息 · {item.updatedAt.slice(0, 16).replace("T", " ")}</small></button>)}{!conversations.length && <p className="form-help">AI 对话会保存为可读 JSON，并随数据仓库同步；切换设备后需重新连接模型。</p>}</div></aside>
     <section className="panel assistant-chat"><div className="panel-head"><div><h2 className="panel-title">{conversation?.title ?? "Research OS 助手"}</h2><span className="panel-meta">{models?.connections.find((item) => item.isDefault)?.name ?? "默认渠道尚未设置"} · 只提出草稿，不会自动写入</span></div><Button variant="outline" size="sm" onClick={() => go("settings")}>模型配置</Button></div>
       <div className="assistant-messages">{conversation?.messages.map((message) => <article className={`assistant-message ${message.role}`} key={message.id}><div className="assistant-message-meta">{message.role === "user" ? "你" : message.channel === "openai_compatible" ? "AI · 备用 API" : "AI · ChatGPT 订阅"}{message.status === "interrupted" && <span className="warning-text"> · 未完成</span>}</div><p className="whitespace-pre-wrap">{message.text}</p>
+        {message.attachmentRefs?.length ? <div className="attachment-ref-list"><strong>本轮附件（原件保存在本机）</strong>{message.attachmentRefs.map((attachment) => <span key={attachment.id}>{attachment.filename} · {attachment.mimeType} · SHA-256 {attachment.sha256.slice(0, 12)}…</span>)}</div> : null}
         {message.citations?.length ? <div className="citation-list"><strong>本地引用</strong>{message.citations.map((item) => <span key={`${item.collection}-${item.id}`}>{collectionForView(item.collection)} · {item.title}</span>)}</div> : null}
         {message.proposal && <div className="proposal-panel"><div className="proposal-head"><div><strong>待审阅操作草稿</strong><div className="row-subtitle">生成时数据版本 {message.proposal.dataRevision}{message.proposal.dataRevision !== db.settings.dataRevision ? " · 数据已变化，必须重新生成" : ""}</div></div><Button variant="ghost" size="sm" onClick={() => void cancelProposal(message)}>取消草稿</Button></div>
           {message.proposal.changes.map((change, index) => { const edit = edits[message.proposal!.id]?.[index] ?? { selected: true, raw: JSON.stringify(change, null, 2) }; return <div className="proposal-change" key={`${message.proposal!.id}-${index}`}><label className="choice"><input type="checkbox" checked={edit.selected} onChange={(event) => setEdits((value) => ({ ...value, [message.proposal!.id]: message.proposal!.changes.map((item, itemIndex) => ({ selected: itemIndex === index ? event.target.checked : value[message.proposal!.id]?.[itemIndex]?.selected ?? true, raw: value[message.proposal!.id]?.[itemIndex]?.raw ?? JSON.stringify(item, null, 2) })) }))} /><span><strong>{change.action} · {collectionForView(change.collection)}{change.id ? ` · ${change.id}` : ""}</strong><div className="row-subtitle">{change.explanation}</div><div className="row-subtitle">建议字段：{Object.entries(change.entity).map(([key, value]) => `${key}=${typeof value === "string" ? value.slice(0, 100) : JSON.stringify(value).slice(0, 100)}`).join(" · ")}</div></span></label><details><summary>编辑此项 JSON</summary><textarea className="field-textarea code-area mt-2" spellCheck={false} value={edit.raw} onChange={(event) => setEdits((value) => ({ ...value, [message.proposal!.id]: message.proposal!.changes.map((item, itemIndex) => ({ selected: value[message.proposal!.id]?.[itemIndex]?.selected ?? true, raw: itemIndex === index ? event.target.value : value[message.proposal!.id]?.[itemIndex]?.raw ?? JSON.stringify(item, null, 2) })) }))} /></details></div>; })}
@@ -984,7 +1163,14 @@ function AssistantPage({ db, refresh, go }: { db: Database; refresh: () => Promi
         {sending && <div className="assistant-message assistant"><div className="assistant-message-meta">正在生成 · {streaming.length ? "已接收响应片段" : "等待模型响应"}</div>{streaming.length > 0 && <pre className="assistant-stream-preview">{streaming.slice(-1600)}</pre>}</div>}
         {!conversation?.messages.length && !sending && <div className="assistant-welcome"><Bot /><h3>把要梳理的问题交给助手</h3><p>助手只会读取活动记录与相关进展；成绩需按每轮单独勾选。模型建议必须经你审阅、编辑并确认后才会保存。</p></div>}
       </div>
-      <div className="assistant-composer"><textarea className="field-textarea" value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void send(); }} placeholder="描述真实情况，或请助手拆任务、整理周计划、生成复盘草稿…" /><div className="assistant-composer-row"><label className="choice"><input type="checkbox" checked={includeGrades} onChange={(event) => setIncludeGrades(event.target.checked)} /><span>本轮允许读取成绩</span></label><span className="form-help">{contextHint || "本地检索 · 不含归档与备份"}</span><Button disabled={sending || !composer.trim()} onClick={() => void send()}>{sending ? "正在生成…" : "发送"}</Button></div></div>
+      <div className="assistant-composer">
+        {attachments.length > 0 && <div className="attachment-review-list">{attachments.map((item) => <article className="attachment-review-card" key={item.attachment.id}><div className="attachment-review-head"><div><strong>{item.attachment.filename}</strong><div className="row-subtitle">{item.attachment.mimeType} · {(item.attachment.size / 1024).toFixed(0)} KB · SHA-256 {item.attachment.sha256.slice(0, 12)}…{item.duplicate ? " · 已存在，复用原件" : " · 仅本机保存"}{item.available === false && <span className="warning-text"> · 此设备缺少原件</span>}</div></div><Button variant="ghost" size="icon-sm" aria-label="移除此附件" onClick={() => void removeSelectedAttachment(item.attachment.id)}><X /></Button></div>
+          {item.isImage ? <Image className="attachment-image-preview" src={`/api/attachments/${item.attachment.id}`} width={480} height={300} unoptimized alt={`待发送附件预览：${item.attachment.filename}`} /> : <div className="attachment-text-preview">{item.previewText || "未提取到文字内容"}{item.textLength > item.previewText.length && <span> …（共摘取 {item.textLength.toLocaleString()} 字，仅显示预览）</span>}</div>}
+          <label className="choice attachment-consent"><input type="checkbox" checked={approvedAttachmentIds.includes(item.attachment.id)} disabled={item.available === false} onChange={(event) => setApprovedAttachmentIds((ids) => event.target.checked ? [...ids, item.attachment.id] : ids.filter((id) => id !== item.attachment.id))} /><span>我已查看文件和摘取预览，同意本次将此附件内容发送给 ChatGPT 订阅模型</span></label>
+        </article>)}</div>}
+        <textarea className="field-textarea" value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void send(); }} placeholder="写下指令，例如：请从附件中提取课程成绩并生成待确认记录…长篇源材料请先保存为本机附件。" />
+        <div className="assistant-composer-row"><label className="choice"><input type="checkbox" checked={includeGrades} onChange={(event) => setIncludeGrades(event.target.checked)} /><span>本轮允许读取已有成绩</span></label><label className="file-pick-button"><Paperclip />{uploadingAttachments ? "读取中…" : "添加图片/文档"}<input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.txt,.md,.csv" multiple disabled={uploadingAttachments || sending} onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ""; void addFiles(files); }} /></label><Button variant="outline" size="sm" disabled={uploadingAttachments || sending || !composer.trim()} onClick={() => void saveComposerAsAttachment()}>将长文本存为本机附件</Button><span className="form-help">{contextHint || "本地检索 · 不含归档与备份"}</span><Button disabled={sending || uploadingAttachments || (!composer.trim() && !attachments.length) || attachments.some((item) => !approvedAttachmentIds.includes(item.attachment.id)) || attachments.some((item) => item.available === false)} onClick={() => void send()}>{sending ? "正在生成…" : attachments.length ? "确认附件后发送" : "发送"}</Button></div>
+      </div>
     </section>
   </div>;
 }

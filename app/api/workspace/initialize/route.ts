@@ -1,13 +1,11 @@
-import { NextResponse } from "next/server";
-import { assertLocalMutation, errorResponse, readJson } from "@/lib/api";
-import { store } from "@/lib/store";
+import { errorResponse } from "@/lib/api";
+import { DataError } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
-    const epoch = assertLocalMutation(request);
-    const body = await readJson<{ expectedRevision: number; confirmation: string }>(request);
-    return NextResponse.json(await store.initializeWorkspace({ expectedEpoch: epoch, ...body }));
+    void request;
+    throw new DataError("破坏性初始化已停用。当前工作区采用保留现有资料的非破坏性导入。", 410);
   } catch (error) { return errorResponse(error); }
 }

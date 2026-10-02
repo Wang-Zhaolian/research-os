@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { cp, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { AIConversation, AIProposal, AnyEntity, CollectionKey, Database, EveningReview, PersonalProfile, ProgressEvent, ReviewSubmission, Settings, Task } from "./types.ts";
+import type { AIConversation, AIProposal, AnyEntity, CollectionKey, Database, EveningReview, LocalAttachment, PersonalProfile, ProgressEvent, ReviewSubmission, Settings, Task } from "./types.ts";
 import { createEntityDefaults, type EditableCollection } from "./entity-defaults.ts";
 import { dateInZone, SWUFE_2024_GPA_RULES, weekStart } from "./domain.ts";
 import { assertDate, assertRef, DataError, isReferenced, validateEntity, validateProfile, validateSettings } from "./validation.ts";
 
-const collectionKeys: CollectionKey[] = ["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "reviews", "progressEvents"];
+const collectionKeys: CollectionKey[] = ["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "pendingItems", "activePlans", "achievements", "internships", "attachments", "reviews", "progressEvents"];
 const optionalEntityFields: Partial<Record<EditableCollection, string[]>> = { tasks: ["plannedWeek", "primaryParent"], papers: ["year"], competitions: ["date", "deadline"] };
 type StoredKey = CollectionKey | "settings" | "profile";
 const iso = () => new Date().toISOString();
@@ -14,8 +14,24 @@ const todayFor = (settings: Settings) => dateInZone(new Date(), settings.timeZon
 const conversationsRootName = "ai-conversations";
 export const emptyProfile: PersonalProfile = { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false };
 
+const defaultStageCategories = [
+  { id: "learning", name: "学科基础", icon: "BookOpen", color: "blue", sortOrder: 1 },
+  { id: "grades", name: "课程成绩", icon: "GraduationCap", color: "indigo", sortOrder: 2 },
+  { id: "research", name: "科研经历", icon: "FlaskConical", color: "violet", sortOrder: 3 },
+  { id: "competition", name: "竞赛经历", icon: "Trophy", color: "amber", sortOrder: 4 },
+  { id: "internship", name: "实习经历", icon: "BriefcaseBusiness", color: "teal", sortOrder: 5 },
+  { id: "project", name: "项目经历", icon: "FolderKanban", color: "cyan", sortOrder: 6 },
+  { id: "personal", name: "个人生活", icon: "Sparkles", color: "rose", sortOrder: 7 },
+  { id: "general", name: "其他", icon: "CircleDot", color: "slate", sortOrder: 8 },
+];
+const defaultPlanningHorizons = [
+  { id: "short", name: "短期", minDays: 3, maxDays: 7, sortOrder: 1 },
+  { id: "medium", name: "中期", minDays: 14, maxDays: 180, sortOrder: 2 },
+  { id: "long", name: "长期", minDays: 365, sortOrder: 3 },
+];
+
 export const defaultSettings: Settings = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   demoData: false,
   timeZone: "Asia/Shanghai",
   stalledDays: 7,
@@ -25,6 +41,8 @@ export const defaultSettings: Settings = {
   gpaConfigured: false,
   modelConnections: [],
   defaultModelConnectionId: "",
+  stageCategories: defaultStageCategories,
+  planningHorizons: defaultPlanningHorizons,
   gpa: { scale: 4, rules: SWUFE_2024_GPA_RULES },
 };
 
@@ -39,6 +57,11 @@ function ensureNestedIds(collection: EditableCollection, entity: AnyEntity): Any
     if (Array.isArray(value.resources)) value.resources = (value.resources as Record<string, unknown>[]).map((item) => ({ ...item, id: typeof item.id === "string" && item.id ? item.id : createId("reso") }));
   }
   return entity;
+}
+
+function removeUnconfirmedProposals(conversation: AIConversation): AIConversation {
+  for (const message of conversation.messages) delete message.proposal;
+  return conversation;
 }
 
 async function readConversationsFrom(directory: string): Promise<Record<string, AIConversation>> {
@@ -116,7 +139,12 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
       }
       try { return await readFileJson<AnyEntity[]>(file(key)); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DataError(`缺少 data/${key}.json；为避免误写空数据，已停止启动。请从 Git 或备份恢复。`, 500); throw error; }
+      catch (error) {
+        const introducedInV4 = ["pendingItems", "activePlans", "achievements", "internships", "attachments"].includes(key);
+        if ((error as NodeJS.ErrnoException).code === "ENOENT" && introducedInV4 && settings.schemaVersion < 4) return [];
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new DataError(`缺少 data/${key}.json；为避免误写空数据，已停止启动。请从 Git 或备份恢复。`, 500);
+        throw error;
+      }
     }));
     let profile = emptyProfile;
     try { profile = await readFileJson<PersonalProfile>(file("profile")); }
@@ -159,7 +187,7 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         if (!Array.isArray(value)) throw new DataError(`快照中的 ${key}.json 格式无效`, 500);
         counts[key] = value.length;
       } catch (error) {
-        const introducedIn = key === "progressEvents" ? 2 : key === "grades" ? 3 : 1;
+        const introducedIn = key === "progressEvents" ? 2 : key === "grades" ? 3 : ["pendingItems", "activePlans", "achievements", "internships", "attachments"].includes(key) ? 4 : 1;
         if ((error as NodeJS.ErrnoException).code !== "ENOENT" || snapshotSettings.schemaVersion >= introducedIn) throw error;
         counts[key] = 0;
       }
@@ -213,21 +241,28 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
       if (paper) paper.relatedResearchIds = [...new Set([...paper.relatedResearchIds, item.id])];
     }
     for (const item of research) item.paperIds = papers.filter((paper) => paper.relatedResearchIds.includes(item.id)).map((paper) => paper.id);
+    const modelConnections = legacy.settings.modelConnections ?? [];
+    const subscriptionConnection = modelConnections.find((item) => item.kind === "chatgpt_subscription");
+    const requestedDefault = modelConnections.find((item) => item.id === legacy.settings.defaultModelConnectionId && item.kind === "chatgpt_subscription");
     const db: Database = {
       ...legacy,
       tasks,
+      learning: legacy.learning.map((course) => ({ ...course, syllabusComplete: course.syllabusComplete ?? false, modules: course.modules ?? [] })),
       papers,
       research,
       goals: legacy.goals.map((goal) => ({ ...goal, linkedItems: goal.linkedItems ?? [], milestones: goal.milestones.map((milestone) => ({ ...milestone, evidence: milestone.evidence ?? "" })) })),
       reviews: legacy.reviews.map((review) => ({ ...review, revision: review.revision ?? 1, operationIds: review.operationIds ?? [] })),
       progressEvents: legacy.progressEvents ?? [],
+      pendingItems: legacy.pendingItems ?? [], activePlans: legacy.activePlans ?? [], achievements: legacy.achievements ?? [], internships: legacy.internships ?? [], attachments: legacy.attachments ?? [],
       grades: (legacy.grades as Database["grades"]).map((grade) => ({ ...grade, gradingType: grade.gradingType ?? "percentage", includeInAverage: grade.includeInAverage ?? true })),
       profile: legacy.profile ?? emptyProfile,
       settings: {
-        ...defaultSettings, ...legacy.settings, schemaVersion: 3, demoData: false,
+        ...defaultSettings, ...legacy.settings, schemaVersion: 4, demoData: false,
         dataEpoch: legacy.settings.dataEpoch ?? randomUUID(), dataRevision: legacy.settings.dataRevision ?? 0,
         gpaPresetId: legacy.settings.gpaPresetId ?? "swufe-2024", gpaConfigured: legacy.settings.gpaConfigured ?? false,
-        modelConnections: legacy.settings.modelConnections ?? [], defaultModelConnectionId: legacy.settings.defaultModelConnectionId ?? "",
+        modelConnections, defaultModelConnectionId: requestedDefault?.id ?? subscriptionConnection?.id ?? "",
+        stageCategories: legacy.settings.stageCategories ?? structuredClone(defaultStageCategories),
+        planningHorizons: legacy.settings.planningHorizons ?? structuredClone(defaultPlanningHorizons),
         timeZone: legacy.settings.timeZone || "Asia/Shanghai", stalledDays: legacy.settings.stalledDays ?? 7,
       },
     };
@@ -238,13 +273,17 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
   const ensure = async (): Promise<Database> => {
     await recover();
     const db = await readRaw();
-    if (db.settings.schemaVersion < 3) {
+    if (db.settings.schemaVersion < 4) {
       const migrated = await migrate(db);
+      migrated.settings.dataEpoch = randomUUID();
+      migrated.settings.dataRevision = db.settings.dataRevision + 1;
       const changes: Partial<Record<StoredKey, unknown>> = { ...Object.fromEntries(collectionKeys.map((key) => [key, migrated[key]])), settings: migrated.settings, profile: migrated.profile };
-      await commit(changes);
+      const conversations = await loadConversations();
+      for (const conversation of Object.values(conversations)) { conversation.dataEpoch = migrated.settings.dataEpoch; conversation.allowGrades = false; removeUnconfirmedProposals(conversation); }
+      await commit(changes, { conversations });
       return migrated;
     }
-    if (db.settings.schemaVersion !== 3) throw new DataError(`不支持的数据版本 ${db.settings.schemaVersion}，请先升级应用。`, 500);
+    if (db.settings.schemaVersion !== 4) throw new DataError(`不支持的数据版本 ${db.settings.schemaVersion}，请先升级应用。`, 500);
     return db;
   };
 
@@ -291,13 +330,13 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
     const oldSettings = await readFileJson<Settings>(path.join(directory, "settings.json"));
     const lists = await Promise.all(collectionKeys.map(async (key) => {
       try { const value = await readFileJson<AnyEntity[]>(path.join(directory, `${key}.json`)); if (!Array.isArray(value)) throw new DataError(`备份中的 ${key}.json 格式无效`); return value; }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT" && (key === "progressEvents" && manifest.schemaVersion < 2 || key === "grades" && manifest.schemaVersion < 3)) return []; throw error; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT" && (key === "progressEvents" && manifest.schemaVersion < 2 || key === "grades" && manifest.schemaVersion < 3 || ["pendingItems", "activePlans", "achievements", "internships", "attachments"].includes(key) && manifest.schemaVersion < 4)) return []; throw error; }
     }));
     let profile = emptyProfile;
     try { profile = await readFileJson<PersonalProfile>(path.join(directory, "profile.json")); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT" || manifest.schemaVersion >= 3) throw error; }
     const legacy = Object.fromEntries([...collectionKeys.map((key, index) => [key, lists[index]]), ["settings", oldSettings], ["profile", profile]]) as unknown as Database;
-    return manifest.schemaVersion < 3 ? migrate(legacy, false) : legacy;
+    return manifest.schemaVersion < 4 ? migrate(legacy, false) : legacy;
   };
 
   const appendEvent = (db: Database, event: Omit<ProgressEvent, keyof import("./types").BaseEntity | "id" | "createdAt" | "updatedAt" | "tags">) => {
@@ -333,6 +372,18 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
     if (collection === "papers") {
       for (const research of db.research) research.paperIds = db.papers.filter((paper) => paper.relatedResearchIds.includes(research.id)).map((paper) => paper.id);
     }
+    if (collection === "tasks") {
+      const task = entity as Task;
+      const oldTask = previous as Task | undefined;
+      for (const plan of db.activePlans) {
+        plan.taskIds = plan.taskIds.filter((id) => id !== task.id);
+        if (plan.id === task.activePlanId) plan.taskIds.push(task.id);
+      }
+      if (oldTask?.activePlanId && oldTask.activePlanId !== task.activePlanId) {
+        const oldPlan = db.activePlans.find((item) => item.id === oldTask.activePlanId);
+        if (oldPlan) oldPlan.taskIds = oldPlan.taskIds.filter((id) => id !== task.id);
+      }
+    }
   };
 
   return {
@@ -356,6 +407,7 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         syncCanonicalRelations(candidate, collection, saved, previous);
         const keys: CollectionKey[] = [collection];
         if (collection === "papers" || collection === "research") keys.push(collection === "papers" ? "research" : "papers");
+        if (collection === "tasks" && ((saved as Task).activePlanId || (previous as Task | undefined)?.activePlanId)) keys.push("activePlans");
         await writeDatabase(candidate, keys);
         return saved;
       });
@@ -364,7 +416,7 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
       return queue(async () => {
         const current = await ensure();
         assertEpoch(current, expectedEpoch);
-        const next = { ...settings, schemaVersion: 3, dataEpoch: current.settings.dataEpoch, dataRevision: current.settings.dataRevision + 1 };
+        const next = { ...settings, schemaVersion: 4, dataEpoch: current.settings.dataEpoch, dataRevision: current.settings.dataRevision + 1 };
         validateSettings(next);
         await commit({ settings: next });
         return next;
@@ -384,6 +436,76 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         settings.gpaConfigured = Boolean(confirmGpaPreset);
         await commit({ profile: nextProfile, settings });
         return nextProfile;
+      });
+    },
+    async registerAttachment(attachment: LocalAttachment, expectedEpoch: string): Promise<LocalAttachment> {
+      return queue(async () => {
+        const db = structuredClone(await ensure()); assertEpoch(db, expectedEpoch);
+        if (!attachment || !/^[a-f0-9-]{36}$/i.test(attachment.id) || !/^[a-f0-9-]{36}$/i.test(attachment.localFileId) || !/^[a-f0-9]{64}$/i.test(attachment.sha256) || !attachment.filename || !Number.isSafeInteger(attachment.size) || attachment.size <= 0 || !["upload", "pasted_text"].includes(attachment.sourceKind)) throw new DataError("附件元数据无效");
+        if (db.attachments.some((item) => item.id === attachment.id || item.sha256 === attachment.sha256 && !item.archived)) throw new DataError("相同附件已存在，请从列表中继续使用原记录", 409);
+        db.attachments.push(attachment);
+        await writeDatabase(db, ["attachments"]);
+        return attachment;
+      });
+    },
+    async removeAttachment(id: string, expectedEpoch: string): Promise<LocalAttachment> {
+      return queue(async () => {
+        const db = structuredClone(await ensure()); assertEpoch(db, expectedEpoch);
+        const attachment = db.attachments.find((item) => item.id === id && !item.archived);
+        if (!attachment) throw new DataError("附件记录不存在", 404);
+        if (isReferenced(db, "attachments", id)) throw new DataError("此附件已被成果或待开始事项引用；请先移除引用再删除", 409);
+        await snapshot("before-attachment-delete", 30);
+        db.attachments = db.attachments.filter((item) => item.id !== id);
+        await writeDatabase(db, ["attachments"]);
+        return attachment;
+      });
+    },
+    async promotePending(input: { id: string; expectedEpoch: string; expectedRevision: number; horizonId: string; startDate?: string; targetDate?: string; nextAction?: string }) {
+      return queue(async () => {
+        const db = structuredClone(await ensure()); assertEpoch(db, input.expectedEpoch);
+        if (db.settings.dataRevision !== input.expectedRevision) throw new DataError("数据已变化，请刷新后再启动此事项", 409);
+        const pending = db.pendingItems.find((item) => item.id === input.id && !item.archived);
+        if (!pending) throw new DataError("待开始事项不存在", 404);
+        if (pending.status === "promoted" && pending.promotedPlanId) {
+          const existing = db.activePlans.find((item) => item.id === pending.promotedPlanId);
+          if (existing) return { pending, plan: existing, repeated: true };
+        }
+        if (pending.status !== "open") throw new DataError("只有待开始事项可以启动", 409);
+        const now = iso();
+        const plan = { ...createEntityDefaults("activePlans"), id: createId("plan"), createdAt: now, updatedAt: now, tags: [...pending.tags], title: pending.title, categoryId: pending.categoryId, horizonId: input.horizonId, status: "in_progress" as const, description: pending.description, nextAction: input.nextAction?.trim() ?? pending.desiredOutcome, startDate: input.startDate, targetDate: input.targetDate, linkedRefs: [...pending.linkedRefs], taskIds: [], sourcePendingId: pending.id };
+        db.activePlans.push(plan);
+        pending.status = "promoted"; pending.promotedPlanId = plan.id; pending.updatedAt = now;
+        validateEntity(db, "activePlans", plan);
+        await writeDatabase(db, ["pendingItems", "activePlans"]);
+        return { pending, plan, repeated: false };
+      });
+    },
+    async completeActivePlan(input: { id: string; expectedEpoch: string; expectedRevision: number; title?: string; summary?: string; achievedDate?: string }) {
+      return queue(async () => {
+        const db = structuredClone(await ensure()); assertEpoch(db, input.expectedEpoch);
+        const plan = db.activePlans.find((item) => item.id === input.id && !item.archived);
+        if (!plan) throw new DataError("进行中计划不存在", 404);
+        if (plan.status === "completed" && plan.achievementId) {
+          const existing = db.achievements.find((item) => item.id === plan.achievementId);
+          if (existing) return { plan, achievement: existing, repeated: true };
+        }
+        if (db.settings.dataRevision !== input.expectedRevision) throw new DataError("数据已变化，请刷新后再完成此计划", 409);
+        if (plan.status === "completed") throw new DataError("此计划已结束，但关联成果卡缺失；请联系维护者检查工作区", 409);
+        const unfinished = plan.taskIds.map((id) => db.tasks.find((task) => task.id === id)).filter((task) => task && !task.archived && task.status !== "completed");
+        if (unfinished.length) throw new DataError(`请先完成关联的 ${unfinished.length} 项任务，或解除这些任务与计划的关联。`, 409);
+        const now = iso();
+        const evidenceRefs = [
+          ...plan.taskIds.map((id) => ({ type: "task" as const, id })),
+          ...plan.linkedRefs.map((ref) => ({ type: ref.type, id: ref.id, label: ref.label })),
+          { type: "active_plan" as const, id: plan.id, label: plan.title },
+        ];
+        const achievement = { ...createEntityDefaults("achievements"), id: createId("achi"), createdAt: now, updatedAt: now, tags: [...plan.tags], title: input.title?.trim() || plan.title, categoryId: plan.categoryId, summary: input.summary?.trim() || plan.description, achievedDate: input.achievedDate || todayFor(db.settings), linkedRefs: [...plan.linkedRefs], evidenceRefs, sourcePlanId: plan.id, verification: "user_recorded" as const };
+        plan.status = "completed"; plan.completedAt = now; plan.achievementId = achievement.id; plan.updatedAt = now;
+        db.achievements.push(achievement);
+        validateEntity(db, "achievements", achievement);
+        validateEntity(db, "activePlans", plan);
+        await writeDatabase(db, ["activePlans", "achievements"]);
+        return { plan, achievement, repeated: false };
       });
     },
     async previewInitialization() {
@@ -436,9 +558,9 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         const restored = await snapshotDatabase(input.id);
         await snapshot("before-restore");
         const epoch = randomUUID();
-        const restoredSettings = { ...restored.settings, schemaVersion: 3, dataEpoch: epoch, dataRevision: current.settings.dataRevision + 1 };
+        const restoredSettings = { ...restored.settings, schemaVersion: 4, dataEpoch: epoch, dataRevision: current.settings.dataRevision + 1 };
         const conversations = await readConversationsFrom(path.join(backups, input.id, conversationsRootName));
-        for (const conversation of Object.values(conversations)) { conversation.dataEpoch = epoch; conversation.allowGrades = false; }
+        for (const conversation of Object.values(conversations)) { conversation.dataEpoch = epoch; conversation.allowGrades = false; removeUnconfirmedProposals(conversation); }
         await commit({ ...Object.fromEntries(collectionKeys.map((key) => [key, restored[key]])), settings: restoredSettings, profile: restored.profile ?? emptyProfile }, { conversations });
         return { dataEpoch: epoch, dataRevision: restoredSettings.dataRevision };
       });
@@ -456,26 +578,29 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         const current = (await loadConversations())[conversation.id];
         if (current && current.createdAt !== conversation.createdAt) throw new DataError("对话创建时间校验失败", 409);
         for (const message of conversation.messages) if (!message || !["user", "assistant"].includes(message.role) || typeof message.text !== "string" || message.text.length > 30_000) throw new DataError("对话消息无效或过长");
-        await atomicWrite(path.join(root, conversationsRootName, `${conversation.id}.json`), conversation);
-        return conversation;
+        const safeConversation = removeUnconfirmedProposals(structuredClone(conversation));
+        safeConversation.appliedOperations = current?.appliedOperations ?? [];
+        await atomicWrite(path.join(root, conversationsRootName, `${conversation.id}.json`), safeConversation);
+        return safeConversation;
       });
     },
-    async applyAIProposal(input: { conversationId: string; proposalId: string; operationId: string; indexes: number[]; expectedEpoch: string; expectedRevision: number; dryRun?: boolean; editedChanges?: AIProposal["changes"] }) {
+    async applyAIProposal(input: { conversationId: string; proposalId: string; operationId: string; indexes: number[]; expectedEpoch: string; expectedRevision: number; dryRun?: boolean; editedChanges?: AIProposal["changes"]; externalProposal?: AIProposal }) {
       return queue(async () => {
         const current = structuredClone(await ensure()); assertEpoch(current, input.expectedEpoch);
         const conversations = await loadConversations();
         const conversation = conversations[input.conversationId];
         if (!conversation || conversation.dataEpoch !== current.settings.dataEpoch) throw new DataError("对话已经过期，请重新开始", 409);
+        const priorOperation = (conversation.appliedOperations ?? []).find((item) => item.proposalId === input.proposalId);
+        if (priorOperation) {
+          if (priorOperation.operationId === input.operationId) return { ok: true, repeated: true, ids: [] };
+          throw new DataError("这份草稿已经提交；如需再次操作，请重新生成草稿", 409);
+        }
         const message = conversation.messages.find((item) => item.proposal?.id === input.proposalId);
-        const proposal = message?.proposal;
-        if (!proposal) throw new DataError("待确认草稿不存在", 404);
+        const proposal = message?.proposal ?? input.externalProposal;
+        if (!proposal || proposal.id !== input.proposalId) throw new DataError("待确认草稿不存在", 404);
         if (input.editedChanges) {
           if (!Array.isArray(input.editedChanges) || input.editedChanges.length > 50) throw new DataError("编辑后的操作草稿格式无效");
           proposal.changes = structuredClone(input.editedChanges);
-        }
-        if (proposal.appliedAt) {
-          if (proposal.operationId === input.operationId) return { ok: true, repeated: true, ids: [] };
-          throw new DataError("这份草稿已提交；如需再次操作，请重新生成草稿", 409);
         }
         if (proposal.dataEpoch !== current.settings.dataEpoch || proposal.dataRevision !== current.settings.dataRevision || input.expectedRevision !== current.settings.dataRevision) throw new DataError("草稿生成后数据已变化。请刷新并重新审阅 AI 草稿。", 409);
         if (!/^[a-z0-9_-]{8,100}$/i.test(input.operationId) || !Array.isArray(input.indexes) || !input.indexes.length || input.indexes.length > 50 || new Set(input.indexes).size !== input.indexes.length || input.indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= proposal.changes.length)) throw new DataError("AI 操作确认请求格式无效");
@@ -484,7 +609,6 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         const tempIds = new Map<string, string>();
         for (const change of selected) if (change.action === "create") {
           if (!change.id || typeof change.id !== "string" || change.id.length > 100 || !/^[a-z0-9:_-]+$/i.test(change.id) || tempIds.has(change.id)) throw new DataError("AI 新建对象缺少有效的草稿关联 ID");
-          if (change.collection === "grades") throw new DataError("成绩请由你亲自录入，AI 不能创建或修改成绩");
           tempIds.set(change.id, createId(change.collection.slice(0, 4)));
         }
         const remap = (value: unknown): unknown => {
@@ -518,8 +642,9 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
             changed.add("tasks"); changed.add("progressEvents"); newIds.push(task.id); continue;
           }
           const collection = change.collection as EditableCollection;
-          if (collection === "grades") throw new DataError("成绩请由你亲自录入，AI 不能创建或修改成绩");
+          if (collection === "grades" && (!Array.isArray(entity.evidenceRefs) || !(entity.evidenceRefs as Record<string, unknown>[]).some((ref) => ref && ref.type === "attachment" && typeof ref.id === "string"))) throw new DataError("AI 提议成绩时必须附带当前本机附件的来源引用");
           const defaults = createEntityDefaults(collection) as unknown as Record<string, unknown>;
+          if (collection === "learning" && Object.hasOwn(entity, "syllabusComplete")) throw new DataError("AI 不能替用户判断课程大纲是否完整；请在课程详情中亲自确认完整章节清单");
           const protectedFields = new Set(["id", "createdAt", "updatedAt", "archived", "completedAt", "pinOrder"]);
           const allowedFields = new Set([...Object.keys(defaults), ...(optionalEntityFields[collection] ?? [])]);
           const illegalFields = Object.keys(entity).filter((key) => !allowedFields.has(key) || protectedFields.has(key));
@@ -529,12 +654,18 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
           if (change.action === "create") {
             const assignedId = tempIds.get(change.id!)!;
             const createValue = { ...defaults, ...entity, id: assignedId, createdAt: iso(), updatedAt: iso(), tags: Array.isArray(entity.tags) ? entity.tags : [] } as unknown as AnyEntity;
+            if (collection === "learning" && (createValue as Database["learning"][number]).status === "completed") throw new DataError("AI 不能直接创建‘已完成整门课程’记录；请先建立课程清单并由你确认其完整性", 422);
             saved = ensureNestedIds(collection, createValue); items.push(saved); newIds.push(saved.id);
           } else {
             const id = typeof change.id === "string" ? tempIds.get(change.id) ?? change.id : "";
             const index = items.findIndex((item) => item.id === id && !item.archived);
             if (index < 0) throw new DataError("AI 草稿要修改的记录不存在或已归档", 409);
             previous = items[index];
+            if (collection === "learning" && entity.status === "completed") {
+              const course = previous as Database["learning"][number];
+              const proposedCourse = { ...course, ...entity } as Database["learning"][number];
+              if (!course.syllabusComplete || !proposedCourse.modules.length || proposedCourse.modules.some((module) => module.status !== "completed" || module.topics.some((topic) => topic.status !== "completed"))) throw new DataError("AI 不能总结为已学完整门课程：请先在资料库确认完整章节清单，并将全部模块与知识点标记为完成", 422);
+            }
             saved = ensureNestedIds(collection, { ...previous, ...entity, id, createdAt: previous.createdAt, updatedAt: iso(), tags: Array.isArray(entity.tags) ? entity.tags : previous.tags } as AnyEntity);
             if (collection === "tasks" && (saved as Task).status === "completed" && (previous as Task).status !== "completed") {
               const completedTask = saved as Task; completedTask.completedAt = iso(); completedTask.pinned = false;
@@ -548,11 +679,12 @@ export function createStore(root = process.env.RESEARCH_OS_DATA_DIR || path.join
         for (const record of records) syncCanonicalRelations(candidate, record.collection, record.entity, record.previous);
         for (const record of records) validateEntity(candidate, record.collection, record.entity, record.previous);
         if (records.some((record) => record.collection === "research" || record.collection === "papers")) { changed.add("research"); changed.add("papers"); }
+        if (records.some((record) => record.collection === "tasks" && ((record.entity as Task).activePlanId || (record.previous as Task | undefined)?.activePlanId))) changed.add("activePlans");
         if (selected.some((change) => change.action === "update" && change.collection === "tasks")) changed.add("progressEvents");
         if (input.dryRun) return { ok: true, repeated: false, ids: newIds };
         current.settings.dataRevision++;
         conversation.updatedAt = iso();
-        proposal.appliedAt = iso(); proposal.operationId = input.operationId;
+        conversation.appliedOperations = [...(conversation.appliedOperations ?? []), { proposalId: input.proposalId, operationId: input.operationId, appliedAt: iso(), ids: newIds }].slice(-100);
         const nextConversations = { ...conversations, [conversation.id]: conversation };
         const changes = { ...Object.fromEntries([...changed].map((key) => [key, candidate[key]])), settings: current.settings };
         await commit(changes, { conversations: nextConversations });

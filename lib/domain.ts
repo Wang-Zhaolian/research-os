@@ -101,7 +101,7 @@ export function taskPlanBucket(task: Task, today: string): PlanBucket {
   return "future";
 }
 
-const refCollections = { learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals", task: "tasks", grade: "grades" } as const;
+const refCollections = { learning: "learning", research: "research", paper: "papers", project: "projects", competition: "competitions", goal: "goals", task: "tasks", grade: "grades", internship: "internships", pending_item: "pendingItems", active_plan: "activePlans", achievement: "achievements" } as const;
 export function resolveRef(db: Database, ref?: EntityRef): AnyEntity | undefined {
   if (!ref) return undefined;
   return (db[refCollections[ref.type]] as AnyEntity[]).find((item) => item.id === ref.id);
@@ -151,6 +151,9 @@ export interface DeadlineItem { id: string; date: string; title: string; type: s
 export function allDeadlines(db: Database): DeadlineItem[] {
   const items: DeadlineItem[] = sortDeadlines(db.tasks).map((task) => ({ id: task.id, date: task.dueDate!, title: task.title, type: task.category }));
   db.research.filter((item) => !item.archived && item.deadline && item.status !== "completed").forEach((item) => items.push({ id: item.id, date: item.deadline!, title: item.name, type: "科研" }));
+  db.activePlans.filter((item) => !item.archived && item.targetDate && item.status !== "completed").forEach((item) => items.push({ id: item.id, date: item.targetDate!, title: item.title, type: "计划" }));
+  db.pendingItems.filter((item) => !item.archived && item.status === "open" && item.targetDate).forEach((item) => items.push({ id: item.id, date: item.targetDate!, title: item.title, type: "待开始" }));
+  db.internships.filter((item) => !item.archived && item.endDate && item.status !== "completed").forEach((item) => items.push({ id: item.id, date: item.endDate!, title: `${item.organization} · ${item.role}`, type: "实习" }));
   db.competitions.filter((item) => !item.archived && item.status !== "completed").forEach((item) => {
     if (item.deadline) items.push({ id: `${item.id}:deadline`, date: item.deadline, title: `${item.name} · 报名/提交截止`, type: "竞赛" });
     if (item.date && item.date !== item.deadline) items.push({ id: `${item.id}:event`, date: item.date, title: `${item.name} · 比赛日期`, type: "竞赛" });
@@ -165,10 +168,12 @@ export function searchDatabase(db: Database, query: string): { collection: strin
   const titleFor = (collection: string, entity: AnyEntity) => {
     if (collection === "tasks" || collection === "papers" || collection === "goals") return (entity as { title: string }).title;
     if (collection === "grades") return (entity as Grade).course;
+    if (collection === "pendingItems" || collection === "activePlans" || collection === "achievements") return (entity as { title: string }).title;
+    if (collection === "internships") return `${(entity as Database["internships"][number]).organization} · ${(entity as Database["internships"][number]).role}`;
     if (collection === "learning") return (entity as { name: string }).name;
     return (entity as { name?: string }).name ?? "记录";
   };
-  return (["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades"] as const)
+  return (["tasks", "learning", "research", "papers", "projects", "competitions", "goals", "grades", "pendingItems", "activePlans", "achievements", "internships"] as const)
     .flatMap((collection) => db[collection].filter((entity) => !entity.archived && JSON.stringify(entity).toLocaleLowerCase().includes(needle))
       .map((entity) => ({ collection, entity, title: titleFor(collection, entity) })));
 }

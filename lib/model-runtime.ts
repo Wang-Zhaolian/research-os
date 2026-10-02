@@ -1,4 +1,4 @@
-import type { Context, Model } from "@earendil-works/pi-ai";
+import type { Context, ImageContent, Model } from "@earendil-works/pi-ai";
 import { streamSimple as piCompletions } from "@earendil-works/pi-ai/api/openai-completions";
 import { streamSimple as piResponses } from "@earendil-works/pi-ai/api/openai-responses";
 import { normalizeContext } from "@earendil-works/pi-ai/utils/transcript";
@@ -31,6 +31,7 @@ async function consume(stream: ReturnType<typeof piResponses>, onDelta?: (delta:
 
 export function summarizeModelError(message: string): string {
   const value = message.toLowerCase();
+  if (value.includes("subscription_sharing_unsupported_capability") || /unsupported[^.\n]*(image|file|input)/i.test(message) || /does not support[^.\n]*(image|file|input)/i.test(message)) return "当前所选 ChatGPT 模型不支持本轮附件格式或能力。请手动选择支持该输入的模型，或移除附件后重试；不会自动切换到其他渠道。";
   if (value.includes("subscription_sharing_usage_limit_exceeded") || value.includes("usage limit")) return "ChatGPT 订阅的当前使用额度不可用。请稍后重试；不会自动切换到 API。";
   if (value.includes("subscription_sharing_usage_unavailable")) return "此账号当前没有可用的 ChatGPT 订阅模型权限。请检查授权状态；不会自动切换到 API。";
   if (value.includes("incomplete") || value.includes("response.completed") || value.includes("响应未完整") || value.includes("未收到完整结束")) return "模型响应未完整结束，因此没有生成可确认草稿。请重试；不会自动切换到其他渠道。";
@@ -39,10 +40,11 @@ export function summarizeModelError(message: string): string {
   return "模型请求失败或连接中断。请检查模型连接后重试；不会自动切换到其他渠道。";
 }
 
-export async function runChatGptModel(modelId: string, prompt: string, history: { role: "user" | "assistant"; text: string }[], signal?: AbortSignal, onDelta?: (delta: string) => void) {
+export async function runChatGptModel(modelId: string, prompt: string, history: { role: "user" | "assistant"; text: string }[], signal?: AbortSignal, onDelta?: (delta: string) => void, imageInputs: ImageContent[] = []) {
   const apiKey = await getChatGptAccessToken();
-  const model = makeResponseModel(modelId, "https://api.openai.com/v1", "openai", true);
-  const context: Context = { systemPrompt: "你是 Research OS 的个人科研与学习助手。不得虚构用户背景或已完成的进展。以中文清晰回答；涉及写入时只输出可供审阅的 JSON 草稿，不代表用户已确认。\n\n此前对话：\n" + history.slice(-20).map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`).join("\n"), messages: [{ role: "user", content: prompt, timestamp: Date.now() }] };
+  const model = { ...makeResponseModel(modelId, "https://api.openai.com/v1", "openai", true), input: imageInputs.length ? ["text", "image"] as ("text" | "image")[] : ["text"] as ("text" | "image")[] };
+  const content = [{ type: "text" as const, text: prompt }, ...imageInputs];
+  const context: Context = { systemPrompt: "你是 Research OS 的个人科研与学习助手。不得虚构用户背景或已完成的进展。以中文清晰回答；涉及写入时只输出可供审阅的 JSON 草稿，不代表用户已确认。\n\n此前对话：\n" + history.slice(-20).map((item) => `${item.role === "user" ? "用户" : "助手"}：${item.text}`).join("\n"), messages: [{ role: "user", content, timestamp: Date.now() }] };
   let receivedCompletedEvent = false;
   const stream = piResponses(model, normalizeContext(context), { apiKey, signal, timeoutMs: 90_000, maxRetries: 0, cacheRetention: "none", onProviderStreamEvent(event) { if (event && typeof event === "object" && "type" in event && event.type === "response.completed") receivedCompletedEvent = true; } });
   return consume(stream, onDelta, () => receivedCompletedEvent);
