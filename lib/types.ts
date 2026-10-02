@@ -84,8 +84,70 @@ export interface Goal extends BaseEntity {
 }
 
 export interface Grade extends BaseEntity {
-  semester: string; course: string; credits: number; score: number;
+  semester: string; course: string; credits: number; score?: number | null;
   courseType: string; isCore: boolean;
+  gradingType: "percentage" | "pass_fail" | "exempt";
+  includeInAverage: boolean;
+  result?: "pass" | "fail";
+}
+
+export interface PersonalProfile {
+  displayName: string;
+  university: string;
+  major: string;
+  entryYear?: number;
+  currentSemester: string;
+  developmentDirections: string[];
+  onboardingComplete: boolean;
+}
+
+export interface ModelConnection {
+  id: string;
+  kind: "chatgpt_subscription" | "openai_compatible";
+  name: string;
+  baseUrl?: string;
+  protocol?: "chat_completions" | "responses";
+  modelId?: string;
+  createdAt: string;
+}
+
+export interface AIConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
+  status: "complete" | "interrupted";
+  channel?: "chatgpt_subscription" | "openai_compatible";
+  usesGradeContext?: boolean;
+  citations?: { collection: string; id: string; title: string }[];
+  proposal?: AIProposal;
+}
+
+export interface AIProposalChange {
+  action: "create" | "update" | "progress" | "priorities";
+  collection: Exclude<CollectionKey, "reviews" | "progressEvents">;
+  id?: string;
+  entity: Record<string, unknown>;
+  explanation: string;
+}
+
+export interface AIProposal {
+  id: string;
+  dataEpoch: string;
+  dataRevision: number;
+  changes: AIProposalChange[];
+  appliedAt?: string;
+  operationId?: string;
+}
+
+export interface AIConversation {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: AIConversationMessage[];
+  allowGrades: boolean;
+  dataEpoch: string;
 }
 
 export interface EveningReview extends BaseEntity {
@@ -133,6 +195,12 @@ export interface Settings {
   schemaVersion: number;
   timeZone: string;
   stalledDays: number;
+  dataEpoch: string;
+  dataRevision: number;
+  gpaPresetId: string;
+  gpaConfigured: boolean;
+  modelConnections: ModelConnection[];
+  defaultModelConnectionId: string;
 }
 
 export interface Database {
@@ -140,6 +208,7 @@ export interface Database {
   papers: Paper[]; projects: PersonalProject[]; competitions: Competition[];
   goals: Goal[]; grades: Grade[]; reviews: EveningReview[]; settings: Settings;
   progressEvents: ProgressEvent[];
+  profile: PersonalProfile;
 }
 
 export type AnyEntity = Task | LearningCourse | ResearchProject | Paper | PersonalProject | Competition | Goal | Grade | EveningReview | ProgressEvent;

@@ -1,4 +1,4 @@
-import type { AnyEntity, CollectionKey, Database, EntityRef, GpaRule, MilestoneRef, Settings, Task } from "./types.ts";
+import type { AnyEntity, CollectionKey, Database, EntityRef, GpaRule, MilestoneRef, PersonalProfile, Settings, Task } from "./types.ts";
 import { weekStart } from "./domain.ts";
 
 export class DataError extends Error {
@@ -88,7 +88,10 @@ export function validateEntity(db: Database, collection: Exclude<CollectionKey, 
   }
   if (collection === "grades") {
     const credits = Number(current.credits); const score = Number(current.score);
-    if (!Number.isFinite(credits) || credits <= 0 || !Number.isFinite(score) || score < 0 || score > 100) throw new DataError("学分必须大于 0，成绩必须在 0–100 之间");
+    if (!Number.isFinite(credits) || credits <= 0) throw new DataError("学分必须大于 0");
+    if (!["percentage", "pass_fail", "exempt"].includes(String(current.gradingType)) || typeof current.includeInAverage !== "boolean") throw new DataError("成绩类型或统计选项无效");
+    if (current.gradingType === "percentage" && current.score !== null && current.score !== undefined && (!Number.isFinite(score) || score < 0 || score > 100)) throw new DataError("百分制成绩必须在 0–100 之间");
+    if (current.gradingType === "pass_fail" && !["pass", "fail"].includes(String(current.result))) throw new DataError("合格制成绩请选择合格或不合格");
   }
   if (collection === "goals") {
     if (!Array.isArray(current.milestones) || !Array.isArray(current.linkedItems)) throw new DataError("目标里程碑或关联格式无效");
@@ -123,6 +126,16 @@ export function validateSettings(settings: Settings): void {
   if (typeof settings.timeZone !== "string" || !settings.timeZone) throw new DataError("时区不能为空");
   try { new Intl.DateTimeFormat("en-US", { timeZone: settings.timeZone }); } catch { throw new DataError("时区无效"); }
   if (!Number.isInteger(settings.stalledDays) || settings.stalledDays < 1 || settings.stalledDays > 365) throw new DataError("停滞天数需在 1–365 天之间");
+  if (settings.schemaVersion !== 3 || typeof settings.dataEpoch !== "string" || !settings.dataEpoch || !Number.isInteger(settings.dataRevision) || settings.dataRevision < 0) throw new DataError("工作区数据版本无效");
+  if (!Array.isArray(settings.modelConnections) || typeof settings.defaultModelConnectionId !== "string") throw new DataError("模型连接设置无效");
+  if (settings.modelConnections.some((item) => !isRecord(item) || typeof item.id !== "string" || !item.id || typeof item.name !== "string" || !item.name.trim() || !["chatgpt_subscription", "openai_compatible"].includes(String(item.kind)) || "apiKey" in item || "accessToken" in item)) throw new DataError("模型连接只能保存非敏感配置，密钥必须留在本机凭据文件");
+  if (settings.defaultModelConnectionId && !settings.modelConnections.some((item) => item.id === settings.defaultModelConnectionId)) throw new DataError("默认模型连接不存在");
+}
+
+export function validateProfile(profile: PersonalProfile): void {
+  if (!isRecord(profile) || typeof profile.displayName !== "string" || typeof profile.university !== "string" || typeof profile.major !== "string" || typeof profile.currentSemester !== "string" || !Array.isArray(profile.developmentDirections) || !profile.developmentDirections.every((item) => typeof item === "string") || typeof profile.onboardingComplete !== "boolean") throw new DataError("个人档案格式无效");
+  if (profile.displayName.length > 120 || profile.university.length > 200 || profile.major.length > 200 || profile.currentSemester.length > 120 || profile.developmentDirections.length > 12 || profile.developmentDirections.some((item) => item.length > 100)) throw new DataError("个人档案内容过长");
+  if (profile.entryYear !== undefined && (!Number.isInteger(profile.entryYear) || profile.entryYear < 1900 || profile.entryYear > 2200)) throw new DataError("入学年份无效");
 }
 
 export function isReferenced(db: Database, collection: CollectionKey, id: string): boolean {

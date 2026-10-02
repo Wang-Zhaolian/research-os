@@ -42,8 +42,14 @@ async function matchingHealth() {
 async function run(command, args) {
   const executable = process.platform === "win32" ? (process.env.ComSpec || "cmd.exe") : command;
   const executableArgs = process.platform === "win32" ? ["/d", "/s", "/c", [command, ...args].join(" ")] : args;
+  const childEnv = { ...process.env, NEXT_TELEMETRY_DISABLED: "1" };
+  // npm run exports its own user-level allow-scripts setting as a CLI env var.
+  // npm rejects that flag for nested project installs; this project instead
+  // keeps its reviewed, version-pinned policy in package.json#allowScripts.
+  delete childEnv.npm_config_allow_scripts;
+  delete childEnv.NPM_CONFIG_ALLOW_SCRIPTS;
   await new Promise((resolve, reject) => {
-    const child = spawn(executable, executableArgs, { cwd: root, stdio: "inherit", windowsHide: true, env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" } });
+    const child = spawn(executable, executableArgs, { cwd: root, stdio: "inherit", windowsHide: true, env: childEnv });
     child.once("error", reject);
     child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} 退出代码 ${code ?? "未知"}`)));
   });
@@ -64,7 +70,8 @@ async function sourceHash() {
   return hash.digest("hex");
 }
 async function prepareBuild() {
-  if (Number(process.versions.node.split(".")[0]) < 22) throw new Error("需要 Node.js 22 或更高版本。请先安装 Node.js，再重新启动。");
+  const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number);
+  if (nodeMajor < 22 || nodeMajor === 22 && nodeMinor < 19) throw new Error("需要 Node.js 22.19 或更高版本。请先安装 Node.js，再重新启动。");
   const lockHash = createHash("sha256").update(await readFile(path.join(root, "package-lock.json"))).digest("hex");
   const lockMarker = path.join(root, "node_modules", ".research-os-lock-hash");
   let installedHash = "";

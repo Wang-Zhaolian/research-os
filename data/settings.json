@@ -1,8 +1,14 @@
 {
-  "schemaVersion": 2,
-  "demoData": true,
+  "schemaVersion": 3,
+  "demoData": false,
   "timeZone": "Asia/Shanghai",
   "stalledDays": 7,
+  "dataEpoch": "32897d46-abb0-4c7c-8be4-6554dd41cede",
+  "dataRevision": 1,
+  "gpaPresetId": "swufe-2024",
+  "gpaConfigured": false,
+  "modelConnections": [],
+  "defaultModelConnectionId": "",
   "gpa": {
     "scale": 4,
     "rules": [

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allDeadlines, calculateGpa, dateInZone, filterTasks, isStalled, priorityCandidates, progressFor, searchDatabase, sortDeadlines, taskPlanBucket, topPriorities, weekStart } from "../lib/domain.ts";
+import { allDeadlines, calculateGpa, calculateGradePoint, calculateWeightedAverage, dateInZone, filterTasks, isStalled, priorityCandidates, progressFor, searchDatabase, sortDeadlines, taskPlanBucket, topPriorities, weekStart, SWUFE_2024_GPA_RULES } from "../lib/domain.ts";
 import { defaultSettings } from "../lib/store.ts";
 import type { Database, Grade, Task } from "../lib/types.ts";
 
@@ -9,16 +9,39 @@ const task = (overrides: Partial<Task> = {}): Task => ({
   id: "task_1", createdAt: stamp, updatedAt: stamp, tags: [], title: "Read paper", category: "论文", priority: "high", status: "not_started",
   nextAction: "Read section 2", relatedRefs: [], milestoneRefs: [], planningState: "inbox", notes: "", pinned: false, pinOrder: 1, ...overrides,
 });
-const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [], progressEvents: [], settings: defaultSettings });
+const empty = (): Database => ({ tasks: [], learning: [], research: [], papers: [], projects: [], competitions: [], goals: [], grades: [], reviews: [], progressEvents: [], profile: { displayName: "", university: "", major: "", currentSemester: "", developmentDirections: [], onboardingComplete: false }, settings: defaultSettings });
 
 test("GPA uses configurable weighted rules", () => {
   const grades: Grade[] = [
-    { id: "g1", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "A", credits: 4, score: 92, courseType: "core", isCore: true },
-    { id: "g2", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "B", credits: 2, score: 78, courseType: "core", isCore: true },
+    { id: "g1", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "A", credits: 4, score: 92, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true },
+    { id: "g2", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "B", credits: 2, score: 78, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true },
   ];
   const result = calculateGpa(grades, defaultSettings.gpa.rules);
   assert.equal(result.credits, 6);
-  assert.equal(result.gpa.toFixed(2), "3.67");
+  assert.equal(result.gpa?.toFixed(2), "3.67");
+});
+
+test("SWUFE 2024 GPA lower-bound edges are exact", () => {
+  for (const rule of SWUFE_2024_GPA_RULES) assert.equal(calculateGradePoint(rule.minScore, SWUFE_2024_GPA_RULES), rule.point, `score ${rule.minScore}`);
+  assert.equal(calculateGradePoint(59, SWUFE_2024_GPA_RULES), 0);
+  assert.equal(calculateGradePoint(89, SWUFE_2024_GPA_RULES), 3.7);
+  assert.equal(calculateGradePoint(100, SWUFE_2024_GPA_RULES), 4);
+});
+
+test("weighted average and GPA exclude pending, pass/fail, exempt, archived and manually excluded grades", () => {
+  const grades: Grade[] = [
+    { id: "scored-4", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "A", credits: 4, score: 90, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true },
+    { id: "scored-2", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "B", credits: 2, score: 60, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true },
+    { id: "pending", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "待出分", credits: 8, score: null, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true },
+    { id: "pass", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "合格", credits: 8, courseType: "elective", isCore: false, gradingType: "pass_fail", includeInAverage: true, result: "pass" },
+    { id: "exempt", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "免修", credits: 5, courseType: "elective", isCore: false, gradingType: "exempt", includeInAverage: true },
+    { id: "excluded", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "重修未计入", credits: 10, score: 100, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: false },
+    { id: "archived", createdAt: stamp, updatedAt: stamp, tags: [], semester: "S1", course: "旧记录", credits: 10, score: 0, courseType: "core", isCore: true, gradingType: "percentage", includeInAverage: true, archived: true },
+  ];
+  assert.deepEqual(calculateWeightedAverage(grades), { average: 80, credits: 6 });
+  assert.deepEqual(calculateGpa(grades, SWUFE_2024_GPA_RULES), { gpa: 3, credits: 6 });
+  assert.deepEqual(calculateWeightedAverage([]), { average: null, credits: 0 });
+  assert.deepEqual(calculateGpa([], SWUFE_2024_GPA_RULES), { gpa: null, credits: 0 });
 });
 
 test("dashboard priorities and deadlines are sorted", () => {
