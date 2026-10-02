@@ -289,7 +289,8 @@ button { cursor: pointer; }
 .stage-category-heading { min-height: 28px; padding-left: 10px; display: flex; align-items: center; gap: 8px; border-left: 3px solid var(--primary); }
 .stage-category-heading h3 { margin: 0; font-size: 13px; font-weight: 700; }
 .stage-category-heading small { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
-.stage-category-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 10%, transparent); }
+.stage-category-mark { width: 22px; height: 22px; display: inline-grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, currentColor 13%, transparent); }
+.stage-category-mark svg { width: 13px; height: 13px; }
 @keyframes stage-group-enter { from { opacity: .7; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .stage-category-group { animation: none; } }
 .portfolio-highlight, .portfolio-intro { min-height: 150px; padding: 26px 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 20px; background: radial-gradient(circle at 90% 15%, color-mix(in srgb, #e5bd8e 28%, transparent), transparent 31%), linear-gradient(120deg, color-mix(in srgb, var(--primary) 12%, var(--card)), var(--card)); box-shadow: 0 12px 34px rgb(70 70 85 / .06); }
